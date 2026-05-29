@@ -1,0 +1,71 @@
+# .github/workflows/deploy-pypiserver.yml
+# ============================================================
+# Deploys the pypiserver Docker stack to your Linode VM
+# via SSH whenever deploy/ changes are pushed to main.
+#
+# GitHub Secrets required (Settings → Secrets → Actions):
+#   LINODE_HOST        — VM public IP or hostname
+#   LINODE_USER        — SSH user (e.g. root or deploy)
+#   LINODE_SSH_KEY     — private SSH key (contents of ~/.ssh/id_ed25519)
+#   PYPI_DOMAIN        — e.g. pypi.yourdomain.com
+#   LETSENCRYPT_EMAIL  — e.g. you@yourdomain.com
+# ============================================================
+
+name: Deploy pypiserver to Linode
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "deploy/**"
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+jobs:
+  deploy:
+    name: SSH deploy to Linode
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Write SSH key ────────────────────────────────────────
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.LINODE_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.LINODE_HOST }}" >> ~/.ssh/known_hosts
+
+      # ── Copy deploy/ folder to VM ────────────────────────────
+      - name: Sync deploy files to VM
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            deploy/ \
+            ${{ secrets.LINODE_USER }}@${{ secrets.LINODE_HOST }}:~/pypi-deploy/
+
+      # ── Run docker compose on VM ─────────────────────────────
+      - name: Restart stack on VM
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.LINODE_USER }}@${{ secrets.LINODE_HOST }} \
+              bash << 'EOF'
+            set -e
+            cd ~/pypi-deploy
+
+            # Write .env from GitHub secrets (only on first deploy or if missing)
+            if [ ! -f .env ]; then
+              cat > .env <<ENVFILE
+            DOMAIN=${{ secrets.PYPI_DOMAIN }}
+            LETSENCRYPT_EMAIL=${{ secrets.LETSENCRYPT_EMAIL }}
+            ENVFILE
+              echo ".env created"
+            fi
+
+            # Pull latest images and restart
+            docker compose pull --quiet
+            docker compose up -d --remove-orphans
+            docker compose ps
+          EOF
