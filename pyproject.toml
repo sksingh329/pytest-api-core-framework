@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytest-api-core"
+version = "1.0.0"
+description = "Pytest API automation framework with custom HTML reporting, reusable fixtures, and fluent assertions"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "QA Platform Team" }]
+keywords = ["pytest", "api", "testing", "automation", "html-report"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Testing",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "pytest>=7.4",
+    "requests>=2.31",
+    "Jinja2>=3.1",
+    "PyYAML>=6.0",
+    "urllib3>=2.0",
+    "jsonschema>=4.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest-mock>=3.12",
+    "responses>=0.25",
+    "black>=24.0",
+    "isort>=5.13",
+    "mypy>=1.8",
+    "twine>=5.0",
+    "build>=1.0",
+]
+
+[project.entry-points."pytest11"]
+pytest-api-core = "pytest_api_core.plugin"
+
+[project.urls]
+Repository = "https://github.com/your-org/pytest-api-core-framework"
+Documentation = "https://your-org.artifactory.com/docs/pytest-api-core"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pytest_api_core = ["reporters/templates/*.html"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+ignore_missing_imports = true

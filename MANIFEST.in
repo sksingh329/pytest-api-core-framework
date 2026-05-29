@@ -1,0 +1,4 @@
+include src/pytest_api_core/reporters/templates/*.html
+include README.md
+include LICENSE
+recursive-include src *.py *.html *.yaml *.yml
