@@ -15,7 +15,7 @@ name: Deploy pypiserver to Linode
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - "deploy/**"
   workflow_dispatch:   # allow manual trigger from GitHub UI
