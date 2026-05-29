@@ -85,18 +85,3 @@ jobs:
           name: dist-${{ github.ref_name }}
           path: dist/
           retention-days: 30
-
-          PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-        run: |
-          python -m twine upload \
-            --repository-url "$PYPI_SERVER_URL" \
-            --username "$PYPI_USERNAME" \
-            --password "$PYPI_PASSWORD" \
-            --non-interactive \
-            dist/*
-
-      - name: Upload dist artefacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
