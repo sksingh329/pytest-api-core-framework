@@ -79,6 +79,9 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align:
 .duration { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .marker { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 10px;
           font-size: 10px; background: #ede9fe; color: #6d28d9; }
+.test-chevron { display: inline-block; font-size: 10px; color: #64748b;
+                transition: transform .2s; margin-right: 8px; vertical-align: middle; }
+.test-chevron.open { transform: rotate(90deg); }
 
 /* ── Detail panel ───────────────────────────────────────────────────── */
 .detail-row td { padding: 0; }
@@ -199,6 +202,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
     <button class="filter-btn" onclick="setFilter('failed', this)">Failed</button>
     <button class="filter-btn" onclick="setFilter('error', this)">Error</button>
     <button class="filter-btn" onclick="setFilter('skipped', this)">Skipped</button>
+    <div style="flex: 1"></div>
+    <button class="filter-btn" onclick="expandAll()">▼ Expand All</button>
+    <button class="filter-btn" onclick="collapseAll()">▲ Collapse All</button>
   </div>
 
   <!-- Results table -->
@@ -230,6 +236,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           </span>
         </td>
         <td class="test-name">
+          {% if has_detail %}
+          <span class="test-chevron" id="chev-detail-{{ idx }}">▶</span>
+          {% endif %}
           {{ rec.node_id }}
           {% for m in rec.markers %}
           <span class="marker">{{ m }}</span>
@@ -379,7 +388,32 @@ var currentFilter = 'all';
 
 function toggleDetail(id) {
   var el = document.getElementById(id);
-  if (el) el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
+  var chev = document.getElementById('chev-' + id);
+  if (!el) return;
+  var isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'table-row';
+  if (chev) chev.classList.toggle('open', !isOpen);
+}
+
+function expandAll() {
+  document.querySelectorAll('.detail-row').forEach(function(row) {
+    var parentRow = row.previousElementSibling;
+    if (parentRow && parentRow.style.display !== 'none') {
+      row.style.display = 'table-row';
+      var id = row.getAttribute('id');
+      var chev = document.getElementById('chev-' + id);
+      if (chev) chev.classList.add('open');
+    }
+  });
+}
+
+function collapseAll() {
+  document.querySelectorAll('.detail-row').forEach(function(row) {
+    row.style.display = 'none';
+    var id = row.getAttribute('id');
+    var chev = document.getElementById('chev-' + id);
+    if (chev) chev.classList.remove('open');
+  });
 }
 
 function toggleHttp(id, headline) {
