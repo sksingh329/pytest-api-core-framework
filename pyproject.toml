@@ -49,8 +49,11 @@ dev = [
 pytest-api-core = "pytest_api_core.plugin"
 
 [project.urls]
-Repository = "https://github.com/your-org/pytest-api-core-framework"
-Documentation = "https://your-org.artifactory.com/docs/pytest-api-core"
+Homepage = "https://github.com/sksingh329/pytest-api-core-framework"
+Repository = "https://github.com/sksingh329/pytest-api-core-framework"
+Documentation = "https://github.com/sksingh329/pytest-api-core-framework/blob/develop/README.md"
+"Bug Tracker" = "https://github.com/sksingh329/pytest-api-core-framework/issues"
+Changelog = "https://github.com/sksingh329/pytest-api-core-framework/blob/develop/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
