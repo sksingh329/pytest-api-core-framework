@@ -7,19 +7,25 @@
 - **`APIClient`** — `requests.Session` wrapper with retry, timeout, and structured logging
 - **Fluent response assertions** — `assert_that(response).status_is(200).json_path("$.id").equals(1)`
 - **Auth strategies** — Bearer token, Basic, API Key (header/query), OAuth2 client credentials
-- **Environment config** — YAML files + `ENV_VAR` overrides via `api_config` fixture
-- **Custom HTML report** — self-contained report with charts, filterable table, and request/response details
+- **Environment config** — Python `settings.py` classes + `.env` file + `ENV_VAR` overrides via `api_config` fixture
+- **Custom HTML report** — self-contained report with charts, filterable table, captured logs, and request/response details
 - **Auto-registered pytest fixtures** — zero boilerplate in consuming projects
 
 ---
 
 ## Installation
 
-### From Artifactory (PyPI proxy)
+### From private PyPI
 
 ```bash
 pip install pytest-api-core \
-  --index-url https://<user>:<token>@<your-org>.jfrog.io/artifactory/api/pypi/<repo>/simple
+  --index-url https://pypi.example.com/simple/
+```
+
+With `.env` support (optional but recommended):
+
+```bash
+pip install "pytest-api-core[dotenv]"
 ```
 
 Or add to `requirements.txt` / `pyproject.toml`:
@@ -28,29 +34,63 @@ Or add to `requirements.txt` / `pyproject.toml`:
 pytest-api-core==1.0.0
 ```
 
-And configure pip via `pip.conf` or environment:
-
-```ini
-[global]
-index-url = https://<user>:<token>@<your-org>.jfrog.io/artifactory/api/pypi/<repo>/simple
-```
-
 ---
 
 ## Quick Start
 
-### 1. Create environment config
+### 1. Create environment settings
 
-```yaml
-# config/env/dev.yaml
-base_url: https://jsonplaceholder.typicode.com
-timeout: 30
-verify_ssl: true
-headers:
-  Accept: application/json
+```python
+# config/settings.py
+import os
+from pytest_api_core.config.base_settings import BaseSettings
+
+class DevSettings(BaseSettings):
+    base_url = "https://api.dev.example.com"
+    timeout  = 30
+    verify_ssl = True
+    headers  = {"Accept": "application/json", "Content-Type": "application/json"}
+
+class StagingSettings(DevSettings):
+    base_url = os.environ.get("API_BASE_URL", "https://api.staging.example.com")
+    timeout  = 60
+
+ENVIRONMENTS = {
+    "dev":     DevSettings,
+    "staging": StagingSettings,
+}
 ```
 
-### 2. Write tests
+### 2. Store secrets in `.env` (never commit this file)
+
+```ini
+# .env
+BEARER_TOKEN=eyJhbGciOiJIUzI1NiIs...
+API_KEY=super-secret-key
+```
+
+### 3. Configure pytest.ini
+
+```ini
+[pytest]
+
+# ── Framework ────────────────────────────────────────────────────────────────
+api_env             = dev
+api_settings_module = config.settings
+api_dotenv_file     = .env
+
+# ── Report ───────────────────────────────────────────────────────────────────
+addopts = --api-html-report=reports/{env}/report_{timestamp}.html -v
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+api_log_level       = INFO
+log_cli             = true
+log_cli_level       = INFO
+log_cli_format      = %(asctime)s [%(levelname)-8s] %(name)s: %(message)s
+log_cli_date_format = %H:%M:%S
+```
+
+### 4. Write tests
 
 ```python
 # tests/test_posts.py
@@ -66,32 +106,55 @@ def test_create_post(api_client):
     assert_that(response).status_is(201).has_key("id")
 ```
 
-### 3. Run with HTML report
+### 5. Run with HTML report
 
 ```bash
-pytest tests/ --api-html-report=reports/report.html --api-env=dev
+pytest tests/ --api-env=staging
 ```
+
+The report is written to `reports/staging/report_<timestamp>.html`.
 
 ---
 
 ## Configuration
 
-### pytest.ini / pyproject.toml
+### Resolution order (highest → lowest priority)
 
-```ini
-[pytest]
-api_env = dev
-api_config_dir = config/env
-api_html_report = reports/report.html
-```
+| Priority | Source |
+|---|---|
+| 1 | Shell / CI environment variables (`API_BASE_URL`, `API_TOKEN`, …) |
+| 2 | `--api-base-url` CLI flag |
+| 3 | `ENVIRONMENTS[env]` class in `settings_module` |
+| 4 | Built-in defaults (`http://localhost`, timeout 30 s, …) |
 
-### Environment Variables
+### pytest.ini options
+
+| Option | Description | Default |
+|---|---|---|
+| `api_env` | Active environment name | `dev` |
+| `api_settings_module` | Dotted path to settings module | — |
+| `api_dotenv_file` | Path to `.env` file | `.env` |
+| `api_log_level` | Log level for framework internals | `WARNING` |
+| `api_html_report` | Output path for HTML report (supports `{env}`, `{timestamp}`) | — |
+
+### CLI flags
+
+| Flag | Description |
+|---|---|
+| `--api-env` | Override active environment |
+| `--api-base-url` | Override `base_url` |
+| `--api-log-level` | Override framework log level |
+| `--api-html-report` | Override HTML report path |
+
+### Environment variables
 
 | Variable | Purpose |
 |---|---|
 | `API_BASE_URL` | Override `base_url` |
-| `API_TOKEN` | Inject Bearer token |
-| `API_ENV` | Select environment config |
+| `API_TOKEN` | Inject Bearer token (auto-applied by `api_client`) |
+| `API_ENV` | Select environment |
+| `API_TIMEOUT` | Override request timeout |
+| `API_VERIFY_SSL` | Override SSL verification |
 
 ---
 
@@ -99,14 +162,38 @@ api_html_report = reports/report.html
 
 | Fixture | Scope | Description |
 |---|---|---|
-| `api_client` | session | Configured `APIClient` instance |
 | `api_config` | session | Resolved config dict for the active env |
-| `api_bearer_auth` | function | Bearer token auth handler |
-| `api_basic_auth` | function | Basic auth handler |
+| `api_client` | session | Configured `APIClient` instance |
+| `api_bearer_auth` | function | `BearerAuth` built from `API_TOKEN` env var |
+| `api_basic_auth` | function | `BasicAuth` built from `API_USERNAME` / `API_PASSWORD` |
+| `api_key_auth` | function | `APIKeyAuth` built from `API_KEY_NAME` / `API_KEY_VALUE` |
+
+### Overriding `api_client` per project
+
+```python
+# tests/conftest.py
+import pytest
+from pytest_api_core.auth.auth_handlers import BearerAuth
+from pytest_api_core.client.api_client import APIClient
+from pytest_api_core.config.env_loader import get_env
+
+@pytest.fixture(scope="session")
+def api_client(api_config):
+    token = get_env("BEARER_TOKEN", required=True)
+    client = APIClient(
+        base_url=api_config["base_url"],
+        auth=BearerAuth(token),
+        timeout=api_config.get("timeout", 30),
+        verify_ssl=api_config.get("verify_ssl", True),
+        default_headers=api_config.get("headers"),
+    )
+    yield client
+    client.close()
+```
 
 ---
 
-## Publishing to Artifactory
+## Publishing
 
 ```bash
 # Build
@@ -114,12 +201,10 @@ python -m build
 
 # Upload via twine
 twine upload \
-  --repository-url https://<org>.jfrog.io/artifactory/api/pypi/<repo> \
+  --repository-url https://pypi.example.com \
   -u <user> -p <token> \
   dist/*
 ```
-
-See `scripts/publish.sh` for CI/CD integration.
 
 ---
 
@@ -131,13 +216,13 @@ src/
     ├── plugin.py           # pytest entry-point
     ├── client/             # HTTP client + response wrapper
     ├── auth/               # Auth strategy classes
-    ├── config/             # YAML + env-var config manager
+    ├── config/             # Config manager, BaseSettings, env_loader
     ├── fixtures/           # Auto-registered pytest fixtures
     ├── assertions/         # Fluent response assertion API
-    └── reporters/          # Custom HTML report plugin + template
+    └── reporters/          # Custom HTML report plugin
+config/
+└── settings.py             # Project environment settings (not shipped in wheel)
 tests/                      # Package self-tests
-config/env/                 # Sample environment configs
-scripts/                    # Build & publish helpers
 ```
 
 ---
