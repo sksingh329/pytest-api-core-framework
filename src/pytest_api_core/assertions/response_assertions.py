@@ -16,10 +16,21 @@ A clear AssertionError with context is raised on failure.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any
 
 from pytest_api_core.client.api_response import APIResponse
+
+_assert_log = logging.getLogger("pytest_api_core.assertions")
+
+
+def _emit(name: str, passed: bool, **detail: Any) -> None:
+    """Emit a machine-readable sentinel line captured by HTMLReporter."""
+    _assert_log.debug(
+        "__API_ASSERT__ %s",
+        json.dumps({"name": name, "passed": passed, **detail}, separators=(",", ":")),
+    )
 
 
 class ResponseAssertions:
@@ -37,7 +48,9 @@ class ResponseAssertions:
     def status_is(self, expected: int) -> "ResponseAssertions":
         """Assert the HTTP status code equals *expected*."""
         actual = self._response.status_code
-        if actual != expected:
+        passed = actual == expected
+        _emit("status_is", passed, expected=expected, actual=actual)
+        if not passed:
             raise AssertionError(
                 f"Expected status {expected}, got {actual}.\n"
                 f"  URL: {self._response.url}\n"
@@ -48,7 +61,9 @@ class ResponseAssertions:
     def status_in(self, *expected: int) -> "ResponseAssertions":
         """Assert the status code is one of *expected*."""
         actual = self._response.status_code
-        if actual not in expected:
+        passed = actual in expected
+        _emit("status_in", passed, expected=list(expected), actual=actual)
+        if not passed:
             raise AssertionError(
                 f"Expected status in {expected}, got {actual}.\n"
                 f"  URL: {self._response.url}"
@@ -58,7 +73,9 @@ class ResponseAssertions:
     def is_success(self) -> "ResponseAssertions":
         """Assert 2xx status code."""
         actual = self._response.status_code
-        if not (200 <= actual < 300):
+        passed = 200 <= actual < 300
+        _emit("is_success", passed, actual=actual)
+        if not passed:
             raise AssertionError(
                 f"Expected 2xx status, got {actual}.\n"
                 f"  URL: {self._response.url}\n"
@@ -118,7 +135,9 @@ class ResponseAssertions:
     def has_key(self, key: str) -> "ResponseAssertions":
         """Assert the JSON body contains *key* at the top level."""
         body = self._json_body()
-        if not isinstance(body, dict) or key not in body:
+        passed = isinstance(body, dict) and key in body
+        _emit("has_key", passed, key=key)
+        if not passed:
             raise AssertionError(
                 f"Expected JSON key '{key}' to be present.\n"
                 f"  Body keys: {list(body.keys()) if isinstance(body, dict) else body}"
@@ -132,8 +151,11 @@ class ResponseAssertions:
             raise AssertionError(f"Response body is not a JSON object: {body!r}")
         actual = body.get(key, _UNSET)
         if actual is _UNSET:
+            _emit("key_equals", False, key=key, expected=expected, actual="<missing>")
             raise AssertionError(f"Key '{key}' not found in response body.")
-        if actual != expected:
+        passed = actual == expected
+        _emit("key_equals", passed, key=key, expected=expected, actual=actual)
+        if not passed:
             raise AssertionError(
                 f"Expected body['{key}'] = {expected!r}, got {actual!r}."
             )
@@ -235,7 +257,9 @@ class ResponseAssertions:
     def response_time_under(self, max_ms: float) -> "ResponseAssertions":
         """Assert the response time is under *max_ms* milliseconds."""
         actual = self._response.elapsed_ms
-        if actual >= max_ms:
+        passed = actual < max_ms
+        _emit("response_time_under", passed, max_ms=max_ms, actual_ms=round(actual, 1))
+        if not passed:
             raise AssertionError(
                 f"Expected response time < {max_ms}ms, got {actual:.1f}ms.\n"
                 f"  URL: {self._response.url}"

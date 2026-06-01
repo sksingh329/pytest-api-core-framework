@@ -11,6 +11,7 @@ Features
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Any
@@ -141,6 +142,27 @@ class APIClient:
         # DEBUG: response body
         if log.isEnabledFor(logging.DEBUG):
             log.debug("   response body: %s", api_resp.response_body_text())
+
+        # Structured sentinel — parsed by HTMLReporter to build request/response banners
+        log.debug(
+            "__API_CALL__ %s",
+            json.dumps(
+                {
+                    "method": method,
+                    "url": url,
+                    "req_headers": {
+                        k: v for k, v in dict(self._session.headers).items()
+                        if k.lower() not in ("authorization",)  # never log auth tokens
+                    },
+                    "req_body": api_resp.request_body_text()[:2000],
+                    "status": response.status_code,
+                    "elapsed_ms": round(elapsed_ms, 1),
+                    "res_headers": dict(response.headers),
+                    "res_body": api_resp.response_body_text()[:2000],
+                },
+                separators=(",", ":"),
+            ),
+        )
 
         return api_resp
 

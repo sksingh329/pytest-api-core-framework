@@ -81,6 +81,9 @@ api_dotenv_file     = .env
 
 # ── Report ───────────────────────────────────────────────────────────────────
 addopts = --api-html-report=reports/{env}/report_{timestamp}.html -v
+api_html_theme      = dark            # or "light"
+api_html_title      = API Test Report # browser tab title
+api_html_header     = API Test Report # page header text
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 api_log_level       = INFO
@@ -136,6 +139,9 @@ The report is written to `reports/staging/report_<timestamp>.html`.
 | `api_dotenv_file` | Path to `.env` file | `.env` |
 | `api_log_level` | Log level for framework internals | `WARNING` |
 | `api_html_report` | Output path for HTML report (supports `{env}`, `{timestamp}`) | — |
+| `api_html_theme` | Report theme: `light` or `dark` | `dark` |
+| `api_html_title` | Browser tab title text | `API Test Report` |
+| `api_html_header` | Page header text | `API Test Report` |
 
 ### CLI flags
 
