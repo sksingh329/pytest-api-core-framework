@@ -201,11 +201,27 @@ def api_client(api_config):
 
 ## Publishing
 
+### Via GitHub Actions (Recommended)
+
+Use the **Publish to Public PyPI** workflow for automated releases:
+
+1. Go to **Actions** → **Publish to Public PyPI**
+2. Click **Run workflow**
+3. Enter version (e.g., `1.0.1`) and enable/disable tests
+4. Workflow will build, test, and publish to PyPI
+
+See [docs/PUBLISHING.md](docs/PUBLISHING.md) for detailed setup instructions.
+
+### Manual Publishing
+
 ```bash
 # Build
 python -m build
 
-# Upload via twine
+# Upload to PyPI
+twine upload dist/*
+
+# Or upload to private registry
 twine upload \
   --repository-url https://pypi.example.com \
   -u <user> -p <token> \
