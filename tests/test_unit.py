@@ -143,27 +143,45 @@ def test_api_key_header_auth():
 # ---------------------------------------------------------------------------
 
 
-def test_config_defaults_only(tmp_path):
-    """ConfigManager returns defaults when no YAML file is found."""
-    mgr = ConfigManager(env="nonexistent", config_dir=str(tmp_path))
+def test_config_defaults_only():
+    """ConfigManager returns defaults when no settings_module is configured."""
+    mgr = ConfigManager(env="nonexistent", settings_module=None)
     cfg = mgr.load()
     assert cfg["base_url"] == "http://localhost"
     assert cfg["timeout"] == 30
 
 
 def test_config_loads_yaml(tmp_path):
-    yaml_file = tmp_path / "test.yaml"
-    yaml_file.write_text("base_url: https://test.example.com\ntimeout: 60\n")
-    mgr = ConfigManager(env="test", config_dir=str(tmp_path))
-    cfg = mgr.load()
-    assert cfg["base_url"] == "https://test.example.com"
-    assert cfg["timeout"] == 60
+    """ConfigManager loads settings from a settings module."""
+    import sys, types
+    mod = types.ModuleType("_test_settings")
+    from pytest_api_core.config.base_settings import BaseSettings
+    class TestEnvSettings(BaseSettings):
+        base_url = "https://test.example.com"
+        timeout = 60
+    mod.ENVIRONMENTS = {"test": TestEnvSettings}
+    sys.modules["_test_settings"] = mod
+    try:
+        mgr = ConfigManager(env="test", settings_module="_test_settings")
+        cfg = mgr.load()
+        assert cfg["base_url"] == "https://test.example.com"
+        assert cfg["timeout"] == 60
+    finally:
+        del sys.modules["_test_settings"]
 
 
-def test_config_env_var_override(tmp_path, monkeypatch):
-    yaml_file = tmp_path / "dev.yaml"
-    yaml_file.write_text("base_url: https://dev.example.com\n")
+def test_config_env_var_override(monkeypatch):
+    import sys, types
+    mod = types.ModuleType("_test_settings_override")
+    from pytest_api_core.config.base_settings import BaseSettings
+    class DevSettings(BaseSettings):
+        base_url = "https://dev.example.com"
+    mod.ENVIRONMENTS = {"dev": DevSettings}
+    sys.modules["_test_settings_override"] = mod
     monkeypatch.setenv("API_BASE_URL", "https://override.example.com")
-    mgr = ConfigManager(env="dev", config_dir=str(tmp_path))
-    cfg = mgr.load()
-    assert cfg["base_url"] == "https://override.example.com"
+    try:
+        mgr = ConfigManager(env="dev", settings_module="_test_settings_override")
+        cfg = mgr.load()
+        assert cfg["base_url"] == "https://override.example.com"
+    finally:
+        del sys.modules["_test_settings_override"]

@@ -43,17 +43,13 @@ def api_config(request: pytest.FixtureRequest) -> dict[str, Any]:
         or request.config.getini("api_env")
         or None
     )
-    config_dir: str = (
-        request.config.getoption("--api-config-dir", default="config/env")
-        or request.config.getini("api_config_dir")
-        or "config/env"
-    )
     base_url_override: str | None = request.config.getoption("--api-base-url", default=None)
+    settings_module: str | None = request.config.getini("api_settings_module") or None
 
     manager = ConfigManager(
         env=env,
-        config_dir=config_dir,
         cli_overrides={"base_url": base_url_override} if base_url_override else None,
+        settings_module=settings_module,
     )
     return manager.load()
 
