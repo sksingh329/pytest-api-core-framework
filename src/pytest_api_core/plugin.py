@@ -63,6 +63,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     # Register ini options to suppress "Unknown config option" warnings
     parser.addini("api_env", help="Default environment (e.g. dev, staging, prod)", default="dev")
     parser.addini("api_html_report", help="Output path for the custom HTML report", default=None)
+    parser.addini("api_html_theme", help="Report theme: light or dark (default: dark)", default="dark")
+    parser.addini("api_html_title", help="Report browser tab title (default: API Test Report)", default="API Test Report")
+    parser.addini("api_html_header", help="Report page header text (default: API Test Report)", default="API Test Report")
     parser.addini("api_log_level", help="Log level for pytest-api-core (DEBUG/INFO/WARNING/ERROR/CRITICAL)", default="WARNING")
     parser.addini("api_settings_module", help="Dotted module path to settings (e.g. config.settings)", default=None)
     parser.addini("api_dotenv_file", help="Path to .env file loaded at session start (default: .env)", default=".env")
@@ -99,7 +102,7 @@ def pytest_configure(config: pytest.Config) -> None:
             or "default"
         )
         report_path = _resolve_report_path(report_path, env)
-        plugin = HTMLReporter(report_path)
+        plugin = HTMLReporter(report_path, config)
         config.pluginmanager.register(plugin, "api-html-reporter")
 
 
