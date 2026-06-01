@@ -4,23 +4,20 @@ Environment-aware configuration manager.
 Resolution order (highest → lowest priority):
   1. Environment variables  (API_BASE_URL, API_TOKEN, …)
   2. ``--api-base-url`` CLI flag
-  3. YAML file at ``<config_dir>/<env>.yaml``
+  3. settings.py  ENVIRONMENTS[env].as_dict()
   4. Built-in defaults
 
 Usage
 -----
-    manager = ConfigManager(env="staging", config_dir="config/env")
+    manager = ConfigManager(env="staging", settings_module="config.settings")
     cfg = manager.load()
-    # cfg = {"base_url": "https://staging.api.example.com", "timeout": 30, ...}
 """
 from __future__ import annotations
 
+import importlib
 import logging
 import os
-from pathlib import Path
 from typing import Any
-
-import yaml
 
 log = logging.getLogger("pytest_api_core.config")
 
@@ -53,21 +50,23 @@ class ConfigManager:
     ----------
     env:
         Environment label (e.g. ``"dev"``, ``"staging"``).
-    config_dir:
-        Directory (absolute or relative to CWD) containing ``<env>.yaml`` files.
     cli_overrides:
         Extra key/value pairs from CLI options (e.g. ``--api-base-url``).
+    settings_module:
+        Dotted import path to a Python module that contains an
+        ``ENVIRONMENTS`` dict mapping env names to ``BaseSettings``
+        subclasses (e.g. ``"config.settings"``).
     """
 
     def __init__(
         self,
         env: str | None = None,
-        config_dir: str | Path = "config/env",
         cli_overrides: dict[str, Any] | None = None,
+        settings_module: str | None = None,
     ) -> None:
         self._env = env or os.environ.get("API_ENV", "dev")
-        self._config_dir = Path(config_dir)
         self._cli_overrides: dict[str, Any] = cli_overrides or {}
+        self._settings_module = settings_module
         self._cache: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------
@@ -85,9 +84,8 @@ class ConfigManager:
 
         cfg: dict[str, Any] = dict(_DEFAULTS)
 
-        # Layer 1: YAML file
-        yaml_cfg = self._load_yaml()
-        _deep_merge(cfg, yaml_cfg)
+        # Layer 1: settings.py
+        _deep_merge(cfg, self._load_settings())
 
         # Layer 2: CLI overrides
         _deep_merge(cfg, {k: v for k, v in self._cli_overrides.items() if v is not None})
@@ -106,16 +104,30 @@ class ConfigManager:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _load_yaml(self) -> dict[str, Any]:
-        yaml_path = self._config_dir / f"{self._env}.yaml"
-        if not yaml_path.exists():
+    def _load_settings(self) -> dict[str, Any]:
+        if not self._settings_module:
+            log.warning("No api_settings_module configured — using defaults only")
+            return {}
+        try:
+            module = importlib.import_module(self._settings_module)
+        except ModuleNotFoundError:
+            log.warning("Settings module not found: %s — using defaults only", self._settings_module)
+            return {}
+
+        environments = getattr(module, "ENVIRONMENTS", None)
+        if not environments:
+            log.warning("No ENVIRONMENTS dict found in %s", self._settings_module)
+            return {}
+
+        settings_class = environments.get(self._env)
+        if not settings_class:
             log.warning(
-                "Config file not found: %s — using defaults only", yaml_path
+                "Environment %r not in ENVIRONMENTS %s — using defaults only",
+                self._env, list(environments.keys()),
             )
             return {}
-        with yaml_path.open("r", encoding="utf-8") as fh:
-            data = yaml.safe_load(fh)
-        return data if isinstance(data, dict) else {}
+
+        return settings_class.as_dict()
 
     @staticmethod
     def _coerce(key: str, raw: str) -> Any:

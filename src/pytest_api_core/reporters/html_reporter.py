@@ -16,6 +16,7 @@ import datetime
 import html
 import json
 import os
+import re
 import traceback
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,7 @@ class _TestRecord:
         "duration",        # seconds
         "stdout",
         "stderr",
+        "logs",            # captured log output (all phases)
         "longrepr",        # failure text
         "request_info",    # dict captured from APIResponse log
         "response_info",   # dict captured from APIResponse log
@@ -49,6 +51,7 @@ class _TestRecord:
         self.duration = 0.0
         self.stdout = ""
         self.stderr = ""
+        self.logs = ""
         self.longrepr = ""
         self.request_info: dict[str, Any] = {}
         self.response_info: dict[str, Any] = {}
@@ -103,6 +106,11 @@ class HTMLReporter:
                 rec.stdout = report.capstdout
             if report.capstderr:
                 rec.stderr = report.capstderr
+
+            # Capture log output from pytest's log capture (all phases)
+            for header, content in report.sections:
+                if "log" in header.lower() and content.strip():
+                    rec.logs += f"--- {header} ---\n{content}\n"
 
             # Capture failure text
             if report.longrepr:
@@ -175,11 +183,12 @@ def _render_row(idx: int, rec: _TestRecord) -> str:
     }.get(rec.outcome, "badge-unknown")
 
     details_id = f"detail-{idx}"
-    has_detail = bool(rec.stdout or rec.stderr or rec.longrepr)
+    has_detail = bool(rec.stdout or rec.stderr or rec.logs or rec.longrepr)
     toggle = f'onclick="toggleDetail(\'{details_id}\')" style="cursor:pointer"' if has_detail else ""
 
     stdout_block = _code_block("stdout", rec.stdout) if rec.stdout else ""
     stderr_block = _code_block("stderr", rec.stderr) if rec.stderr else ""
+    logs_block = _log_block(rec.logs) if rec.logs else ""
     longrepr_block = _code_block("failure", rec.longrepr) if rec.longrepr else ""
 
     detail_row = ""
@@ -187,7 +196,7 @@ def _render_row(idx: int, rec: _TestRecord) -> str:
         detail_row = (
             f'<tr id="{details_id}" class="detail-row" style="display:none">'
             f'<td colspan="4"><div class="detail-body">'
-            f"{stdout_block}{stderr_block}{longrepr_block}"
+            f"{logs_block}{stdout_block}{stderr_block}{longrepr_block}"
             f"</div></td></tr>"
         )
 
@@ -211,6 +220,19 @@ def _code_block(label: str, content: str) -> str:
         f'<div class="detail-section">'
         f'<div class="detail-label">{html.escape(label.upper())}</div>'
         f'<pre class="code-block">{html.escape(content)}</pre>'
+        f"</div>"
+    )
+
+
+def _strip_ansi(text: str) -> str:
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
+def _log_block(content: str) -> str:
+    return (
+        f'<div class="detail-section">'
+        f'<div class="detail-label log-label">LOGS</div>'
+        f'<pre class="code-block log-block">{html.escape(_strip_ansi(content))}</pre>'
         f"</div>"
     )
 
@@ -325,9 +347,11 @@ td {{ padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align
 .detail-section {{ margin-bottom: 12px; }}
 .detail-label {{ font-size: 10px; text-transform: uppercase; letter-spacing: .8px;
                  color: #64748b; margin-bottom: 6px; font-weight: 600; }}
+.log-label {{ color: #f59e0b; }}
 .code-block {{ font-family: "SF Mono", "Fira Code", monospace; font-size: 12px;
                color: var(--code-text); white-space: pre-wrap; overflow-wrap: break-word;
                max-height: 400px; overflow-y: auto; }}
+.log-block {{ color: #fde68a; }}
 footer {{ text-align: center; padding: 24px; color: var(--text-muted); font-size: 12px; }}
 </style>
 </head>

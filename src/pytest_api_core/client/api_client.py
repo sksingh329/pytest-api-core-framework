@@ -119,20 +119,29 @@ class APIClient:
         kwargs.setdefault("timeout", self.timeout)
         kwargs.setdefault("verify", self.verify_ssl)
 
-        log.debug("%s %s  kwargs=%s", method, url, {k: v for k, v in kwargs.items() if k != "json"})
+        # DEBUG: full request detail before sending
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug(
+                "→ %s %s  headers=%s  body=%s",
+                method,
+                url,
+                dict(self._session.headers),
+                kwargs.get("json") or kwargs.get("data"),
+            )
 
         start = time.monotonic()
         response = self._session.request(method, url, **kwargs)
         elapsed_ms = (time.monotonic() - start) * 1000
 
         api_resp = APIResponse(response, elapsed_ms)
-        log.debug(
-            "%s %s → %s  (%.1f ms)",
-            method,
-            url,
-            response.status_code,
-            elapsed_ms,
-        )
+
+        # INFO: one-liner always shown at INFO level
+        log.info("← %s %s  %s  (%.1f ms)", method, url, response.status_code, elapsed_ms)
+
+        # DEBUG: response body
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("   response body: %s", api_resp.response_body_text())
+
         return api_resp
 
     # ------------------------------------------------------------------
