@@ -1,27 +1,33 @@
 """
 Custom HTML reporter for pytest-api-core.
 
-Generates a single self-contained HTML file (no external CDN dependencies)
-with:
+Generates a single self-contained HTML file from a Jinja2 template with:
   - Summary card: total / passed / failed / error / skipped counts + duration
   - SVG donut chart
   - Filterable, sortable results table
-  - Expandable rows: stdout, request details, response details, failure traceback
-  - Pass/fail badge per test
+  - Per-test expandable panels:
+      • HTTP call banners (method badge, URL, status, elapsed) with
+        tabbed Request Headers / Req Body / Res Headers / Res Body
+      • Assertion result rows (✅/❌ with expected vs actual)
+      • Captured logs, stdout, failure traceback
   - Dark/light mode toggle
 """
 from __future__ import annotations
 
 import datetime
-import html
 import json
-import os
 import re
-import traceback
 from pathlib import Path
 from typing import Any
 
 import pytest
+from jinja2 import Environment, PackageLoader
+
+
+_jinja_env = Environment(
+    loader=PackageLoader("pytest_api_core", "reporters/templates"),
+    autoescape=True,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -37,10 +43,10 @@ class _TestRecord:
         "duration",        # seconds
         "stdout",
         "stderr",
-        "logs",            # captured log output (all phases)
+        "logs",            # captured log output (displayed in template)
         "longrepr",        # failure text
-        "request_info",    # dict captured from APIResponse log
-        "response_info",   # dict captured from APIResponse log
+        "api_calls",       # list[dict] — parsed from __API_CALL__ sentinels
+        "assertions",      # list[dict] — parsed from __API_ASSERT__ sentinels
         "markers",
     )
 
@@ -53,8 +59,8 @@ class _TestRecord:
         self.stderr = ""
         self.logs = ""
         self.longrepr = ""
-        self.request_info: dict[str, Any] = {}
-        self.response_info: dict[str, Any] = {}
+        self.api_calls: list[dict[str, Any]] = []
+        self.assertions: list[dict[str, Any]] = []
         self.markers: list[str] = []
 
 
@@ -66,11 +72,14 @@ class _TestRecord:
 class HTMLReporter:
     """pytest plugin that captures results and writes an HTML report on finish."""
 
-    def __init__(self, report_path: str) -> None:
+    def __init__(self, report_path: str, config: pytest.Config) -> None:
         self._path = Path(report_path)
         self._records: dict[str, _TestRecord] = {}
         self._start_time: datetime.datetime = datetime.datetime.now()
         self._total_duration = 0.0
+        self._theme = config.getini("api_html_theme") or "dark"
+        self._title = config.getini("api_html_title") or "API Test Report"
+        self._header = config.getini("api_html_header") or "API Test Report"
 
     # -- collection ----------------------------------------------------------
 
@@ -107,10 +116,34 @@ class HTMLReporter:
             if report.capstderr:
                 rec.stderr = report.capstderr
 
-            # Capture log output from pytest's log capture (all phases)
+            # Parse captured log sections:
+            # - extract __API_CALL__ and __API_ASSERT__ sentinels into structured fields
+            # - keep human-readable log lines for the LOGS panel
+            log_text = ""
             for header, content in report.sections:
-                if "log" in header.lower() and content.strip():
-                    rec.logs += f"--- {header} ---\n{content}\n"
+                if "log" not in header.lower() or not content.strip():
+                    continue
+                clean_lines = []
+                for raw_line in _strip_ansi(content).splitlines():
+                    if "__API_CALL__" in raw_line:
+                        try:
+                            payload = raw_line.split("__API_CALL__", 1)[1].strip()
+                            rec.api_calls.append(json.loads(payload))
+                        except (ValueError, IndexError):
+                            pass
+                        continue   # don't add to human log
+                    if "__API_ASSERT__" in raw_line:
+                        try:
+                            payload = raw_line.split("__API_ASSERT__", 1)[1].strip()
+                            rec.assertions.append(json.loads(payload))
+                        except (ValueError, IndexError):
+                            pass
+                        continue   # don't add to human log
+                    clean_lines.append(raw_line)
+                section_text = "\n".join(clean_lines).strip()
+                if section_text:
+                    log_text += f"--- {header} ---\n{section_text}\n"
+            rec.logs = log_text
 
             # Capture failure text
             if report.longrepr:
@@ -129,6 +162,9 @@ class HTMLReporter:
             records=list(self._records.values()),
             start_time=self._start_time,
             total_duration=self._total_duration,
+            theme=self._theme,
+            title=self._title,
+            header=self._header,
         )
         self._path.write_text(html_content, encoding="utf-8")
         # Print path relative to cwd for readability
@@ -148,93 +184,36 @@ def _render_report(
     records: list[_TestRecord],
     start_time: datetime.datetime,
     total_duration: float,
+    theme: str,
+    title: str,
+    header: str,
 ) -> str:
-    counts = {"passed": 0, "failed": 0, "error": 0, "skipped": 0, "unknown": 0}
+    counts: dict[str, int] = {"passed": 0, "failed": 0, "error": 0, "skipped": 0, "unknown": 0}
     for rec in records:
         counts[rec.outcome] = counts.get(rec.outcome, 0) + 1
 
     total = len(records)
-    generated_at = start_time.strftime("%Y-%m-%d %H:%M:%S")
-    duration_str = f"{total_duration:.2f}s"
-
-    rows_html = "".join(_render_row(i, rec) for i, rec in enumerate(records))
-    donut_svg = _donut_svg(counts, total)
-
-    return _HTML_TEMPLATE.format(
-        generated_at=html.escape(generated_at),
-        duration=html.escape(duration_str),
+    template = _jinja_env.get_template("report.html")
+    return template.render(
+        records=records,
+        generated_at=start_time.strftime("%Y-%m-%d %H:%M:%S"),
+        duration=f"{total_duration:.2f}s",
         total=total,
         passed=counts["passed"],
         failed=counts["failed"],
         error=counts["error"],
         skipped=counts["skipped"],
-        donut_svg=donut_svg,
-        rows=rows_html,
         pass_rate=f"{(counts['passed'] / total * 100):.1f}" if total else "0.0",
-    )
-
-
-def _render_row(idx: int, rec: _TestRecord) -> str:
-    badge_class = {
-        "passed": "badge-pass",
-        "failed": "badge-fail",
-        "error": "badge-error",
-        "skipped": "badge-skip",
-    }.get(rec.outcome, "badge-unknown")
-
-    details_id = f"detail-{idx}"
-    has_detail = bool(rec.stdout or rec.stderr or rec.logs or rec.longrepr)
-    toggle = f'onclick="toggleDetail(\'{details_id}\')" style="cursor:pointer"' if has_detail else ""
-
-    stdout_block = _code_block("stdout", rec.stdout) if rec.stdout else ""
-    stderr_block = _code_block("stderr", rec.stderr) if rec.stderr else ""
-    logs_block = _log_block(rec.logs) if rec.logs else ""
-    longrepr_block = _code_block("failure", rec.longrepr) if rec.longrepr else ""
-
-    detail_row = ""
-    if has_detail:
-        detail_row = (
-            f'<tr id="{details_id}" class="detail-row" style="display:none">'
-            f'<td colspan="4"><div class="detail-body">'
-            f"{logs_block}{stdout_block}{stderr_block}{longrepr_block}"
-            f"</div></td></tr>"
-        )
-
-    markers_html = "".join(
-        f'<span class="marker">{html.escape(m)}</span>' for m in rec.markers
-    )
-
-    return (
-        f'<tr class="result-row {rec.outcome}" {toggle} data-outcome="{rec.outcome}">'
-        f'<td><span class="badge {badge_class}">{rec.outcome.upper()}</span></td>'
-        f'<td class="test-name">{html.escape(rec.node_id)}{markers_html}</td>'
-        f'<td class="duration">{rec.duration:.3f}s</td>'
-        f'<td>{html.escape(rec.name)}</td>'
-        f"</tr>"
-        f"{detail_row}"
-    )
-
-
-def _code_block(label: str, content: str) -> str:
-    return (
-        f'<div class="detail-section">'
-        f'<div class="detail-label">{html.escape(label.upper())}</div>'
-        f'<pre class="code-block">{html.escape(content)}</pre>'
-        f"</div>"
+        donut_svg=_donut_svg(counts, total),
+        theme=theme,
+        report_title=title,
+        report_header=header,
     )
 
 
 def _strip_ansi(text: str) -> str:
+    """Strip ANSI escape codes from a string."""
     return re.sub(r"\x1b\[[0-9;]*m", "", text)
-
-
-def _log_block(content: str) -> str:
-    return (
-        f'<div class="detail-section">'
-        f'<div class="detail-label log-label">LOGS</div>'
-        f'<pre class="code-block log-block">{html.escape(_strip_ansi(content))}</pre>'
-        f"</div>"
-    )
 
 
 def _donut_svg(counts: dict[str, int], total: int) -> str:
@@ -257,193 +236,10 @@ def _donut_svg(counts: dict[str, int], total: int) -> str:
         segments.append(
             f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{color}" '
             f'stroke-width="20" stroke-dasharray="{dash:.2f} {circumference:.2f}" '
-            f'stroke-dashoffset="-{offset:.2f}" transform="rotate(-90 {cx} {cy})"/>'
+            f'stroke-dashoffset="-{offset:.2f}" transform="rotate(-90 {cx} {cy})"/>' 
         )
         offset += dash
 
     inner_text = f'<text x="{cx}" y="{cy+5}" text-anchor="middle" font-size="18" font-weight="bold" fill="currentColor">{total}</text>'
-    return f'<svg width="140" height="140">{"".join(segments)}{inner_text}</svg>'
-
-
-# ---------------------------------------------------------------------------
-# HTML template (self-contained — inline CSS + JS, no external deps)
-# ---------------------------------------------------------------------------
-
-_HTML_TEMPLATE = """<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>API Test Report</title>
-<style>
-:root {{
-  --bg: #f8fafc; --surface: #ffffff; --border: #e2e8f0;
-  --text: #1e293b; --text-muted: #64748b;
-  --pass: #22c55e; --fail: #ef4444; --error: #f97316; --skip: #94a3b8;
-  --code-bg: #1e293b; --code-text: #e2e8f0;
-  --shadow: 0 1px 3px rgba(0,0,0,.1);
-}}
-[data-theme="dark"] {{
-  --bg: #0f172a; --surface: #1e293b; --border: #334155;
-  --text: #f1f5f9; --text-muted: #94a3b8;
-  --code-bg: #0f172a; --code-text: #e2e8f0;
-  --shadow: 0 1px 3px rgba(0,0,0,.4);
-}}
-* {{ box-sizing: border-box; margin: 0; padding: 0; }}
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }}
-header {{ background: var(--surface); border-bottom: 1px solid var(--border);
-          padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }}
-header h1 {{ font-size: 20px; font-weight: 700; letter-spacing: -.3px; }}
-header small {{ color: var(--text-muted); margin-left: 10px; font-weight: 400; font-size: 12px; }}
-.theme-btn {{ background: none; border: 1px solid var(--border); border-radius: 6px;
-              padding: 6px 12px; cursor: pointer; color: var(--text); font-size: 13px; }}
-.main {{ max-width: 1280px; margin: 24px auto; padding: 0 24px; }}
-.summary-grid {{ display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: center;
-                 background: var(--surface); border-radius: 12px; padding: 24px;
-                 box-shadow: var(--shadow); margin-bottom: 24px; }}
-.donut-wrap {{ display: flex; flex-direction: column; align-items: center; gap: 8px; }}
-.stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }}
-.stat-card {{ background: var(--bg); border-radius: 8px; padding: 14px 16px;
-              border: 1px solid var(--border); text-align: center; }}
-.stat-card .stat-value {{ font-size: 28px; font-weight: 700; line-height: 1; }}
-.stat-card .stat-label {{ font-size: 11px; text-transform: uppercase;
-                          letter-spacing: .8px; color: var(--text-muted); margin-top: 4px; }}
-.stat-card.pass .stat-value {{ color: var(--pass); }}
-.stat-card.fail .stat-value {{ color: var(--fail); }}
-.stat-card.error .stat-value {{ color: var(--error); }}
-.stat-card.skip .stat-value {{ color: var(--skip); }}
-.controls {{ display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }}
-.search-box {{ flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid var(--border);
-               border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }}
-.filter-btn {{ padding: 7px 16px; border: 1px solid var(--border); border-radius: 6px;
-               background: var(--surface); color: var(--text-muted); cursor: pointer;
-               font-size: 13px; transition: all .15s; }}
-.filter-btn.active {{ background: var(--text); color: var(--bg); border-color: var(--text); }}
-table {{ width: 100%; border-collapse: collapse; background: var(--surface);
-         border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }}
-thead tr {{ background: var(--bg); border-bottom: 2px solid var(--border); }}
-th {{ padding: 10px 14px; text-align: left; font-size: 11px; text-transform: uppercase;
-      letter-spacing: .7px; color: var(--text-muted); }}
-td {{ padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }}
-.result-row:hover {{ background: var(--bg); }}
-.result-row.failed {{ border-left: 3px solid var(--fail); }}
-.result-row.error {{ border-left: 3px solid var(--error); }}
-.result-row.passed {{ border-left: 3px solid var(--pass); }}
-.result-row.skipped {{ border-left: 3px solid var(--skip); }}
-.badge {{ display: inline-block; padding: 2px 8px; border-radius: 4px;
-          font-size: 11px; font-weight: 700; letter-spacing: .5px; }}
-.badge-pass {{ background: #dcfce7; color: #15803d; }}
-.badge-fail {{ background: #fee2e2; color: #dc2626; }}
-.badge-error {{ background: #ffedd5; color: #c2410c; }}
-.badge-skip {{ background: #f1f5f9; color: #475569; }}
-.test-name {{ font-family: "SF Mono", "Fira Code", monospace; font-size: 12px; max-width: 600px;
-              overflow-wrap: break-word; }}
-.duration {{ color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }}
-.marker {{ display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 10px;
-           font-size: 10px; background: #ede9fe; color: #6d28d9; }}
-.detail-row td {{ padding: 0; }}
-.detail-body {{ background: var(--code-bg); padding: 16px; }}
-.detail-section {{ margin-bottom: 12px; }}
-.detail-label {{ font-size: 10px; text-transform: uppercase; letter-spacing: .8px;
-                 color: #64748b; margin-bottom: 6px; font-weight: 600; }}
-.log-label {{ color: #f59e0b; }}
-.code-block {{ font-family: "SF Mono", "Fira Code", monospace; font-size: 12px;
-               color: var(--code-text); white-space: pre-wrap; overflow-wrap: break-word;
-               max-height: 400px; overflow-y: auto; }}
-.log-block {{ color: #fde68a; }}
-footer {{ text-align: center; padding: 24px; color: var(--text-muted); font-size: 12px; }}
-</style>
-</head>
-<body>
-<header>
-  <div>
-    <h1>API Test Report <small>Generated {generated_at} &nbsp;|&nbsp; Duration: {duration}</small></h1>
-  </div>
-  <button class="theme-btn" onclick="toggleTheme()">🌙 Dark</button>
-</header>
-
-<div class="main">
-  <div class="summary-grid">
-    <div class="donut-wrap">
-      {donut_svg}
-      <div style="font-size:12px;color:var(--text-muted)">Pass rate: <strong>{pass_rate}%</strong></div>
-    </div>
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-value">{total}</div><div class="stat-label">Total</div></div>
-      <div class="stat-card pass"><div class="stat-value">{passed}</div><div class="stat-label">Passed</div></div>
-      <div class="stat-card fail"><div class="stat-value">{failed}</div><div class="stat-label">Failed</div></div>
-      <div class="stat-card error"><div class="stat-value">{error}</div><div class="stat-label">Errors</div></div>
-      <div class="stat-card skip"><div class="stat-value">{skipped}</div><div class="stat-label">Skipped</div></div>
-    </div>
-  </div>
-
-  <div class="controls">
-    <input class="search-box" type="text" placeholder="Search tests…" oninput="filterTable()" id="searchBox"/>
-    <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
-    <button class="filter-btn" onclick="setFilter('passed', this)">Passed</button>
-    <button class="filter-btn" onclick="setFilter('failed', this)">Failed</button>
-    <button class="filter-btn" onclick="setFilter('error', this)">Error</button>
-    <button class="filter-btn" onclick="setFilter('skipped', this)">Skipped</button>
-  </div>
-
-  <table id="resultsTable">
-    <thead><tr>
-      <th style="width:90px">Status</th>
-      <th>Test ID</th>
-      <th style="width:90px">Duration</th>
-      <th>Name</th>
-    </tr></thead>
-    <tbody id="tableBody">
-      {rows}
-    </tbody>
-  </table>
-</div>
-
-<footer>pytest-api-core &mdash; API Test Report</footer>
-
-<script>
-var currentFilter = 'all';
-
-function toggleDetail(id) {{
-  var el = document.getElementById(id);
-  if (el) el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
-}}
-
-function setFilter(outcome, btn) {{
-  currentFilter = outcome;
-  document.querySelectorAll('.filter-btn').forEach(function(b) {{ b.classList.remove('active'); }});
-  btn.classList.add('active');
-  applyFilters();
-}}
-
-function filterTable() {{ applyFilters(); }}
-
-function applyFilters() {{
-  var query = document.getElementById('searchBox').value.toLowerCase();
-  document.querySelectorAll('#tableBody .result-row').forEach(function(row) {{
-    var matchOutcome = currentFilter === 'all' || row.dataset.outcome === currentFilter;
-    var matchSearch = !query || row.innerText.toLowerCase().includes(query);
-    var show = matchOutcome && matchSearch;
-    row.style.display = show ? '' : 'none';
-    var detailId = row.getAttribute('onclick');
-    if (detailId) {{
-      var m = detailId.match(/'([^']+)'/);
-      if (m) {{
-        var detail = document.getElementById(m[1]);
-        if (detail && !show) detail.style.display = 'none';
-      }}
-    }}
-  }});
-}}
-
-function toggleTheme() {{
-  var html = document.documentElement;
-  var isDark = html.getAttribute('data-theme') === 'dark';
-  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
-  document.querySelector('.theme-btn').textContent = isDark ? '🌙 Dark' : '☀️ Light';
-}}
-</script>
-</body>
-</html>
-"""
+    joined = "".join(segments)
+    return f'<svg width="140" height="140">{joined}{inner_text}</svg>'
