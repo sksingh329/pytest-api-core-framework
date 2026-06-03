@@ -104,18 +104,6 @@ Override `api_client` in your project's `conftest.py` to inject custom auth — 
 
 ---
 
-## Publishing
-
-Releases are automated via GitHub Actions on version tag push (`v*.*.*`):
-
-```bash
-git tag v1.0.2 && git push origin v1.0.2
-```
-
-See [docs/PUBLISHING.md](docs/PUBLISHING.md) for full setup instructions.
-
----
-
 ## License
 
 See [LICENSE](LICENSE).
