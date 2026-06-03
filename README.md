@@ -1,99 +1,37 @@
 # pytest-api-core
 
-> A reusable pytest API automation framework with fluent assertions, built-in auth strategies, environment-aware configuration, and a beautiful custom HTML report — packaged for Artifactory distribution.
+[![PyPI version](https://img.shields.io/pypi/v/pytest-api-core)](https://pypi.org/project/pytest-api-core/)
+[![Python](https://img.shields.io/pypi/pyversions/pytest-api-core)](https://pypi.org/project/pytest-api-core/)
+[![License](https://img.shields.io/pypi/l/pytest-api-core)](LICENSE)
+
+> A reusable pytest plugin for API automation — fluent assertions, built-in auth strategies, environment-aware configuration, and a self-contained HTML report.
 
 ## Features
 
 - **`APIClient`** — `requests.Session` wrapper with retry, timeout, and structured logging
-- **Fluent response assertions** — `assert_that(response).status_is(200).json_path("$.id").equals(1)`
+- **Fluent assertions** — `assert_that(response).status_is(200).json_path("$.id").equals(1)`
 - **Auth strategies** — Bearer token, Basic, API Key (header/query), OAuth2 client credentials
-- **Environment config** — Python `settings.py` classes + `.env` file + `ENV_VAR` overrides via `api_config` fixture
-- **Custom HTML report** — self-contained report with charts, filterable table, captured logs, and request/response details
-- **Auto-registered pytest fixtures** — zero boilerplate in consuming projects
+- **Environment config** — Python `settings.py` classes + `.env` file + env var overrides
+- **Custom HTML report** — self-contained file with charts, filterable table, and request/response details
+- **Auto-registered fixtures** — zero boilerplate in consuming projects
 
 ---
 
 ## Installation
 
-### From private PyPI
+```bash
+pip install pytest-api-core==1.0.2
+```
+
+With `.env` file support (recommended):
 
 ```bash
-pip install pytest-api-core \
-  --index-url https://pypi.example.com/simple/
-```
-
-With `.env` support (optional but recommended):
-
-```bash
-pip install "pytest-api-core[dotenv]"
-```
-
-Or add to `requirements.txt` / `pyproject.toml`:
-
-```
-pytest-api-core==1.0.0
+pip install "pytest-api-core[dotenv]==1.0.2"
 ```
 
 ---
 
-## Quick Start
-
-### 1. Create environment settings
-
-```python
-# config/settings.py
-import os
-from pytest_api_core.config.base_settings import BaseSettings
-
-class DevSettings(BaseSettings):
-    base_url = "https://api.dev.example.com"
-    timeout  = 30
-    verify_ssl = True
-    headers  = {"Accept": "application/json", "Content-Type": "application/json"}
-
-class StagingSettings(DevSettings):
-    base_url = os.environ.get("API_BASE_URL", "https://api.staging.example.com")
-    timeout  = 60
-
-ENVIRONMENTS = {
-    "dev":     DevSettings,
-    "staging": StagingSettings,
-}
-```
-
-### 2. Store secrets in `.env` (never commit this file)
-
-```ini
-# .env
-BEARER_TOKEN=eyJhbGciOiJIUzI1NiIs...
-API_KEY=super-secret-key
-```
-
-### 3. Configure pytest.ini
-
-```ini
-[pytest]
-
-# ── Framework ────────────────────────────────────────────────────────────────
-api_env             = dev
-api_settings_module = config.settings
-api_dotenv_file     = .env
-
-# ── Report ───────────────────────────────────────────────────────────────────
-addopts = --api-html-report=reports/{env}/report_{timestamp}.html -v
-api_html_theme      = dark            # or "light"
-api_html_title      = API Test Report # browser tab title
-api_html_header     = API Test Report # page header text
-
-# ── Logging ──────────────────────────────────────────────────────────────────
-api_log_level       = INFO
-log_cli             = true
-log_cli_level       = INFO
-log_cli_format      = %(asctime)s [%(levelname)-8s] %(name)s: %(message)s
-log_cli_date_format = %H:%M:%S
-```
-
-### 4. Write tests
+## Quick start
 
 ```python
 # tests/test_posts.py
@@ -109,13 +47,11 @@ def test_create_post(api_client):
     assert_that(response).status_is(201).has_key("id")
 ```
 
-### 5. Run with HTML report
-
 ```bash
 pytest tests/ --api-env=staging
 ```
 
-The report is written to `reports/staging/report_<timestamp>.html`.
+For full setup instructions — including `pytest.ini`, `config/settings.py`, `conftest.py` auth overrides, and CI integration — see **[docs/QUICKSTART.md](docs/QUICKSTART.md)**.
 
 ---
 
@@ -128,20 +64,18 @@ The report is written to `reports/staging/report_<timestamp>.html`.
 | 1 | Shell / CI environment variables (`API_BASE_URL`, `API_TOKEN`, …) |
 | 2 | `--api-base-url` CLI flag |
 | 3 | `ENVIRONMENTS[env]` class in `settings_module` |
-| 4 | Built-in defaults (`http://localhost`, timeout 30 s, …) |
+| 4 | Built-in defaults (`http://localhost`, timeout 30 s) |
 
-### pytest.ini options
+### Key `pytest.ini` options
 
 | Option | Description | Default |
 |---|---|---|
 | `api_env` | Active environment name | `dev` |
-| `api_settings_module` | Dotted path to settings module | — |
+| `api_settings_module` | Dotted path to your settings module | — |
 | `api_dotenv_file` | Path to `.env` file | `.env` |
-| `api_log_level` | Log level for framework internals | `WARNING` |
-| `api_html_report` | Output path for HTML report (supports `{env}`, `{timestamp}`) | — |
+| `api_log_level` | Framework log level | `WARNING` |
+| `api_html_report` | HTML report path (supports `{env}`, `{timestamp}`) | — |
 | `api_html_theme` | Report theme: `light` or `dark` | `dark` |
-| `api_html_title` | Browser tab title text | `API Test Report` |
-| `api_html_header` | Page header text | `API Test Report` |
 
 ### CLI flags
 
@@ -152,100 +86,33 @@ The report is written to `reports/staging/report_<timestamp>.html`.
 | `--api-log-level` | Override framework log level |
 | `--api-html-report` | Override HTML report path |
 
-### Environment variables
-
-| Variable | Purpose |
-|---|---|
-| `API_BASE_URL` | Override `base_url` |
-| `API_TOKEN` | Inject Bearer token (auto-applied by `api_client`) |
-| `API_ENV` | Select environment |
-| `API_TIMEOUT` | Override request timeout |
-| `API_VERIFY_SSL` | Override SSL verification |
-
 ---
 
 ## Fixtures
+
+All fixtures are auto-registered — no imports needed in `conftest.py`.
 
 | Fixture | Scope | Description |
 |---|---|---|
 | `api_config` | session | Resolved config dict for the active env |
 | `api_client` | session | Configured `APIClient` instance |
-| `api_bearer_auth` | function | `BearerAuth` built from `API_TOKEN` env var |
-| `api_basic_auth` | function | `BasicAuth` built from `API_USERNAME` / `API_PASSWORD` |
-| `api_key_auth` | function | `APIKeyAuth` built from `API_KEY_NAME` / `API_KEY_VALUE` |
+| `api_bearer_auth` | function | `BearerAuth` from `API_TOKEN` env var |
+| `api_basic_auth` | function | `BasicAuth` from `API_USERNAME` / `API_PASSWORD` |
+| `api_key_auth` | function | `APIKeyAuth` from `API_KEY_NAME` / `API_KEY_VALUE` |
 
-### Overriding `api_client` per project
-
-```python
-# tests/conftest.py
-import pytest
-from pytest_api_core.auth.auth_handlers import BearerAuth
-from pytest_api_core.client.api_client import APIClient
-from pytest_api_core.config.env_loader import get_env
-
-@pytest.fixture(scope="session")
-def api_client(api_config):
-    token = get_env("BEARER_TOKEN", required=True)
-    client = APIClient(
-        base_url=api_config["base_url"],
-        auth=BearerAuth(token),
-        timeout=api_config.get("timeout", 30),
-        verify_ssl=api_config.get("verify_ssl", True),
-        default_headers=api_config.get("headers"),
-    )
-    yield client
-    client.close()
-```
+Override `api_client` in your project's `conftest.py` to inject custom auth — see [docs/QUICKSTART.md](docs/QUICKSTART.md#7-override-api_client-with-bearer-token----testsconftestpy).
 
 ---
 
 ## Publishing
 
-### Via GitHub Actions (Recommended)
-
-Use the **Publish to Public PyPI** workflow for automated releases:
-
-1. Go to **Actions** → **Publish to Public PyPI**
-2. Click **Run workflow**
-3. Enter version (e.g., `1.0.1`) and enable/disable tests
-4. Workflow will build, test, and publish to PyPI
-
-See [docs/PUBLISHING.md](docs/PUBLISHING.md) for detailed setup instructions.
-
-### Manual Publishing
+Releases are automated via GitHub Actions on version tag push (`v*.*.*`):
 
 ```bash
-# Build
-python -m build
-
-# Upload to PyPI
-twine upload dist/*
-
-# Or upload to private registry
-twine upload \
-  --repository-url https://pypi.example.com \
-  -u <user> -p <token> \
-  dist/*
+git tag v1.0.2 && git push origin v1.0.2
 ```
 
----
-
-## Project Layout
-
-```
-src/
-└── pytest_api_core/
-    ├── plugin.py           # pytest entry-point
-    ├── client/             # HTTP client + response wrapper
-    ├── auth/               # Auth strategy classes
-    ├── config/             # Config manager, BaseSettings, env_loader
-    ├── fixtures/           # Auto-registered pytest fixtures
-    ├── assertions/         # Fluent response assertion API
-    └── reporters/          # Custom HTML report plugin
-config/
-└── settings.py             # Project environment settings (not shipped in wheel)
-tests/                      # Package self-tests
-```
+See [docs/PUBLISHING.md](docs/PUBLISHING.md) for full setup instructions.
 
 ---
 
