@@ -17,13 +17,13 @@ pip install -e ".[dev,dotenv]"
 pytest tests/
 
 # Run only unit tests (no network)
-pytest tests/test_unit.py
+pytest tests/unit/
 
-# Run only API integration tests (hits jsonplaceholder.typicode.com)
-pytest tests/test_sample_api.py --api-env=dev
+# Run only e2e tests (hits jsonplaceholder.typicode.com)
+pytest tests/e2e/ --api-env=dev
 
 # Run a single test
-pytest tests/test_unit.py::test_assertion_status_is -v
+pytest tests/unit/test_unit.py::TestAssertionsHappyPath::test_assertion_status_is -v
 
 # Run with HTML report
 pytest tests/ --api-html-report=reports/report_{timestamp}.html
@@ -96,7 +96,7 @@ Consuming projects override `api_client` in their own `conftest.py` to inject pr
 
 ## Testing the Framework
 
-Unit tests in `tests/test_unit.py` use the `responses` library to mock HTTP — no network needed. Integration tests in `tests/test_sample_api.py` hit `jsonplaceholder.typicode.com`.
+Unit tests in `tests/unit/test_unit.py` use the `responses` library to mock HTTP — no network needed. E2e tests in `tests/e2e/test_sample_api.py` hit `jsonplaceholder.typicode.com`.
 
 When writing tests for new framework features, mock HTTP with `@responses.activate` and assert on `APIResponse` attributes or `ResponseAssertions` behavior.
 

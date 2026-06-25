@@ -153,6 +153,18 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align:
 .assert-detail .got { color: #fca5a5; }
 
 footer { text-align: center; padding: 24px; color: var(--text-muted); font-size: 12px; }
+
+/* ── Run info dropdown ──────────────────────────────────────────────── */
+.header-actions { display: flex; align-items: center; gap: 8px; position: relative; }
+.info-panel { display: none; position: absolute; top: calc(100% + 8px); right: 0;
+              background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+              box-shadow: var(--shadow); padding: 10px; z-index: 10; min-width: 280px; }
+.info-panel.open { display: block; }
+.info-table { width: 100%; border-collapse: collapse; }
+.info-table td { padding: 4px 8px; font-size: 12px; border-bottom: none; }
+.info-table td:first-child { color: var(--text-muted); white-space: nowrap; }
+.info-table td:last-child { color: var(--text); font-family: "SF Mono", "Fira Code", monospace;
+                             text-align: right; word-break: break-all; }
 </style>
 </head>
 <body>
@@ -162,7 +174,17 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
       <small>Generated {{ generated_at }} &nbsp;|&nbsp; Duration: {{ duration }}</small>
     </h1>
   </div>
-  <button class="theme-btn" onclick="toggleTheme()">🌙 Dark</button>
+  <div class="header-actions">
+    <button class="theme-btn" onclick="toggleInfo()">⚙ Run Info</button>
+    <button class="theme-btn" onclick="toggleTheme()">🌙 Dark</button>
+    <div class="info-panel" id="infoPanel">
+      <table class="info-table">
+        {% for label, value in run_info %}
+        <tr><td>{{ label }}</td><td>{{ value }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
 </header>
 
 <div class="main">
@@ -457,6 +479,20 @@ function applyFilters() {
     }
   });
 }
+
+function toggleInfo() {
+  document.getElementById('infoPanel').classList.toggle('open');
+}
+
+document.addEventListener('click', function(e) {
+  var panel = document.getElementById('infoPanel');
+  if (!panel.classList.contains('open')) return;
+  var withinPanel = panel.contains(e.target);
+  var isToggleBtn = e.target.matches('.header-actions .theme-btn:first-child');
+  if (!withinPanel && !isToggleBtn) {
+    panel.classList.remove('open');
+  }
+});
 
 function toggleTheme() {
   var html = document.documentElement;

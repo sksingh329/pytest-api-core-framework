@@ -12,17 +12,19 @@ Generates a single self-contained HTML file from a Jinja2 template with:
       • Captured logs, stdout, failure traceback
   - Dark/light mode toggle
 """
+
 from __future__ import annotations
 
 import datetime
+import getpass
 import json
+import platform
 import re
 from pathlib import Path
 from typing import Any
 
 import pytest
 from jinja2 import Environment, PackageLoader
-
 
 _jinja_env = Environment(
     loader=PackageLoader("pytest_api_core", "reporters/templates"),
@@ -39,14 +41,14 @@ class _TestRecord:
     __slots__ = (
         "node_id",
         "name",
-        "outcome",         # "passed" | "failed" | "error" | "skipped"
-        "duration",        # seconds
+        "outcome",  # "passed" | "failed" | "error" | "skipped"
+        "duration",  # seconds
         "stdout",
         "stderr",
-        "logs",            # captured log output (displayed in template)
-        "longrepr",        # failure text
-        "api_calls",       # list[dict] — parsed from __API_CALL__ sentinels
-        "assertions",      # list[dict] — parsed from __API_ASSERT__ sentinels
+        "logs",  # captured log output (displayed in template)
+        "longrepr",  # failure text
+        "api_calls",  # list[dict] — parsed from __API_CALL__ sentinels
+        "assertions",  # list[dict] — parsed from __API_ASSERT__ sentinels
         "markers",
     )
 
@@ -80,6 +82,7 @@ class HTMLReporter:
         self._theme = config.getini("api_html_theme") or "dark"
         self._title = config.getini("api_html_title") or "API Test Report"
         self._header = config.getini("api_html_header") or "API Test Report"
+        self._run_info = _collect_run_info(config)
 
     # -- collection ----------------------------------------------------------
 
@@ -131,14 +134,14 @@ class HTMLReporter:
                             rec.api_calls.append(json.loads(payload))
                         except (ValueError, IndexError):
                             pass
-                        continue   # don't add to human log
+                        continue  # don't add to human log
                     if "__API_ASSERT__" in raw_line:
                         try:
                             payload = raw_line.split("__API_ASSERT__", 1)[1].strip()
                             rec.assertions.append(json.loads(payload))
                         except (ValueError, IndexError):
                             pass
-                        continue   # don't add to human log
+                        continue  # don't add to human log
                     clean_lines.append(raw_line)
                 section_text = "\n".join(clean_lines).strip()
                 if section_text:
@@ -165,6 +168,7 @@ class HTMLReporter:
             theme=self._theme,
             title=self._title,
             header=self._header,
+            run_info=self._run_info,
         )
         self._path.write_text(html_content, encoding="utf-8")
         # Print path relative to cwd for readability
@@ -180,6 +184,34 @@ class HTMLReporter:
 # ---------------------------------------------------------------------------
 
 
+def _collect_run_info(config: pytest.Config) -> list[tuple[str, str]]:
+    """Gather report/log config and machine details for the collapsible info panel."""
+    env = config.getoption("--api-env", default=None) or config.getini("api_env") or "default"
+    api_log_level = (
+        config.getoption("--api-log-level", default=None)
+        or config.getini("api_log_level")
+        or "WARNING"
+    )
+    html_log_level = config.getini("log_level") or "WARNING"
+    log_cli_level = config.getoption("log_cli_level", default=None) or config.getini(
+        "log_cli_level"
+    )
+    log_cli = bool(log_cli_level) or bool(config.getini("log_cli"))
+
+    return [
+        ("Environment", env),
+        ("api_log_level", api_log_level),
+        ("HTML report log_level", html_log_level),
+        ("log_cli", "enabled" if log_cli else "disabled"),
+        ("log_cli_level", log_cli_level if log_cli else "—"),
+        ("Hostname", platform.node()),
+        ("User", getpass.getuser()),
+        ("OS / Platform", platform.platform()),
+        ("Python", platform.python_version()),
+        ("Pytest", pytest.__version__),
+    ]
+
+
 def _render_report(
     records: list[_TestRecord],
     start_time: datetime.datetime,
@@ -187,6 +219,7 @@ def _render_report(
     theme: str,
     title: str,
     header: str,
+    run_info: list[tuple[str, str]],
 ) -> str:
     counts: dict[str, int] = {"passed": 0, "failed": 0, "error": 0, "skipped": 0, "unknown": 0}
     for rec in records:
@@ -208,6 +241,7 @@ def _render_report(
         theme=theme,
         report_title=title,
         report_header=header,
+        run_info=run_info,
     )
 
 
@@ -236,7 +270,7 @@ def _donut_svg(counts: dict[str, int], total: int) -> str:
         segments.append(
             f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{color}" '
             f'stroke-width="20" stroke-dasharray="{dash:.2f} {circumference:.2f}" '
-            f'stroke-dashoffset="-{offset:.2f}" transform="rotate(-90 {cx} {cy})"/>' 
+            f'stroke-dashoffset="-{offset:.2f}" transform="rotate(-90 {cx} {cy})"/>'
         )
         offset += dash
 
