@@ -343,17 +343,25 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <span class="assert-icon">{% if a.passed %}✅{% else %}❌{% endif %}</span>
                   <span class="assert-name">{{ a.name }}</span>
                   <span class="assert-detail">
+                    {% if a.path is defined %}
+                      path=<span class="exp">{{ a.path }}</span> &nbsp;
+                    {% endif %}
+                    {% if a.pattern is defined %}
+                      pattern=<span class="exp">{{ a.pattern }}</span> &nbsp;
+                    {% endif %}
+                    {% if a.header is defined %}
+                      header=<span class="exp">{{ a.header }}</span> &nbsp;
+                    {% endif %}
+                    {% if a.key is defined %}
+                      key=<span class="exp">{{ a.key }}</span> &nbsp;
+                    {% endif %}
                     {% if a.expected is defined and a.actual is defined %}
                       expected=<span class="exp">{{ a.expected }}</span>
                       &nbsp; actual=<span class="got {% if not a.passed %}got{% endif %}">{{ a.actual }}</span>
-                    {% elif a.key is defined %}
-                      key=<span class="exp">{{ a.key }}</span>
-                      {% if a.expected is defined %}
-                        expected=<span class="exp">{{ a.expected }}</span>
-                        &nbsp; actual=<span class="{% if not a.passed %}got{% else %}exp{% endif %}">{{ a.actual }}</span>
-                      {% endif %}
                     {% elif a.actual is defined %}
                       actual=<span class="{% if a.passed %}exp{% else %}got{% endif %}">{{ a.actual }}</span>
+                    {% elif a.expected is defined %}
+                      expected=<span class="exp">{{ a.expected }}</span>
                     {% elif a.max_ms is defined %}
                       max={{ a.max_ms }}ms &nbsp; actual=<span class="{% if a.passed %}exp{% else %}got{% endif %}">{{ a.actual_ms }}ms</span>
                     {% endif %}

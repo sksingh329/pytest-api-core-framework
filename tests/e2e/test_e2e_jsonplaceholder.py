@@ -5,7 +5,7 @@ Target API: JSONPlaceholder (https://jsonplaceholder.typicode.com) — free fake
 
 import pytest
 
-from pytest_api_core.assertions import assert_that
+from pytest_api_core.assertions import assert_equal, assert_that
 
 # ---------------------------------------------------------------------------
 # GET tests
@@ -58,6 +58,8 @@ class TestCreatePost:
 
         assert_that(response).status_is(201).has_key("id")
         assert_that(response).json_path("$.title").equals(payload["title"])
+        assert_that(response).key_equals("userId", payload["userId"])
+        assert_equal(response.json()["title"], payload["title"])
 
 
 # ---------------------------------------------------------------------------

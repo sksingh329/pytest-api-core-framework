@@ -6,7 +6,16 @@ Uses 'responses' library to mock HTTP calls — no real network needed.
 import pytest
 import responses as rsps_lib
 
-from pytest_api_core.assertions import assert_that
+from pytest_api_core.assertions import (
+    assert_contains,
+    assert_equal,
+    assert_equal_ignore_case,
+    assert_is_empty,
+    assert_is_not_empty,
+    assert_matches,
+    assert_not_equal,
+    assert_that,
+)
 from pytest_api_core.auth.auth_handlers import APIKeyAuth, BearerAuth
 from pytest_api_core.client.api_client import APIClient
 from pytest_api_core.config.config_manager import ConfigManager
@@ -124,6 +133,68 @@ class TestAssertionsFailurePaths:
         resp = client.get("/user")
         with pytest.raises(AssertionError, match="name"):
             assert_that(resp).has_key("name")
+
+
+# ---------------------------------------------------------------------------
+# Generic assert utils
+# ---------------------------------------------------------------------------
+
+
+class TestAssertUtils:
+    pytestmark = pytest.mark.unit
+
+    def test_assert_equal_passes(self):
+        assert_equal("hello", "hello")
+
+    def test_assert_equal_fails(self):
+        with pytest.raises(AssertionError, match="Expected 'hello'"):
+            assert_equal("world", "hello")
+
+    def test_assert_not_equal_passes(self):
+        assert_not_equal("world", "hello")
+
+    def test_assert_not_equal_fails(self):
+        with pytest.raises(AssertionError, match="Expected value to differ"):
+            assert_not_equal("hello", "hello")
+
+    def test_assert_equal_ignore_case_passes(self):
+        assert_equal_ignore_case("HELLO", "hello")
+
+    def test_assert_equal_ignore_case_fails(self):
+        with pytest.raises(AssertionError, match="case-insensitive"):
+            assert_equal_ignore_case("world", "hello")
+
+    def test_assert_contains_passes(self):
+        assert_contains("hello world", "world")
+
+    def test_assert_contains_fails(self):
+        with pytest.raises(AssertionError, match="to contain"):
+            assert_contains("hello world", "missing")
+
+    def test_assert_matches_passes(self):
+        assert_matches("abc123", r"^\w+\d+$")
+
+    def test_assert_matches_fails(self):
+        with pytest.raises(AssertionError, match="to match"):
+            assert_matches("abc", r"^\d+$")
+
+    def test_assert_is_empty_passes(self):
+        assert_is_empty("")
+
+    def test_assert_is_empty_fails(self):
+        with pytest.raises(AssertionError, match="Expected empty string"):
+            assert_is_empty("not empty")
+
+    def test_assert_is_not_empty_passes(self):
+        assert_is_not_empty("not empty")
+
+    def test_assert_is_not_empty_fails(self):
+        with pytest.raises(AssertionError, match="Expected non-empty string"):
+            assert_is_not_empty("")
+
+    def test_assert_equal_custom_message(self):
+        with pytest.raises(AssertionError, match="Usernames must match"):
+            assert_equal("bob", "alice", message="Usernames must match")
 
 
 # ---------------------------------------------------------------------------
