@@ -8,6 +8,7 @@ Usage
     assert_equal(actual, expected)
     assert_contains(actual, "substring")
     assert_matches(actual, r"^\\d+$")
+    assert_matches_schema(actual, schema)
 
 Unlike :class:`ResponseAssertions`, these are plain functions for comparing
 arbitrary actual/expected strings — not tied to an ``APIResponse``.
@@ -18,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from typing import Any
 
 _assert_log = logging.getLogger("pytest_api_core.assertions")
 
@@ -88,3 +90,25 @@ def assert_is_not_empty(actual: str, *, message: str | None = None) -> None:
     _emit("assert_is_not_empty", passed, actual=actual)
     if not passed:
         _fail(message, "Expected non-empty string, got empty string.")
+
+
+def assert_matches_schema(
+    actual: object, schema: dict[str, Any], *, message: str | None = None
+) -> None:
+    """Assert *actual* conforms to the given JSON Schema, collecting all errors."""
+    import jsonschema
+
+    validator = jsonschema.Draft7Validator(schema)
+    errors = sorted(validator.iter_errors(actual), key=lambda e: list(e.path))
+    passed = not errors
+    error_messages = [e.message for e in errors]
+    _emit(
+        "assert_matches_schema",
+        passed,
+        errors=error_messages,
+        schema=json.dumps(schema, indent=2, default=str),
+        actual=json.dumps(actual, indent=2, default=str),
+    )
+    if not passed:
+        joined = "; ".join(error_messages)
+        _fail(message, f"Schema validation failed with {len(errors)} error(s): {joined}")

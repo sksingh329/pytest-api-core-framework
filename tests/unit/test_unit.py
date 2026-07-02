@@ -3,6 +3,8 @@ Unit tests for the APIClient, APIResponse, assertions, auth, and config.
 Uses 'responses' library to mock HTTP calls — no real network needed.
 """
 
+import json
+
 import pytest
 import responses as rsps_lib
 
@@ -13,6 +15,7 @@ from pytest_api_core.assertions import (
     assert_is_empty,
     assert_is_not_empty,
     assert_matches,
+    assert_matches_schema,
     assert_not_equal,
     assert_that,
 )
@@ -195,6 +198,38 @@ class TestAssertUtils:
     def test_assert_equal_custom_message(self):
         with pytest.raises(AssertionError, match="Usernames must match"):
             assert_equal("bob", "alice", message="Usernames must match")
+
+    def test_assert_matches_schema_passes(self):
+        schema = {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "required": ["id"],
+        }
+        assert_matches_schema({"id": 42}, schema)
+
+    def test_assert_matches_schema_fails_with_all_errors(self):
+        schema = {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}, "name": {"type": "string"}},
+            "required": ["id", "name"],
+        }
+        with pytest.raises(AssertionError, match="2 error\\(s\\)"):
+            assert_matches_schema({"id": "not-an-int"}, schema)
+
+    def test_assert_matches_schema_custom_message(self):
+        schema = {"type": "object", "required": ["id"]}
+        with pytest.raises(AssertionError, match="Payload must include id"):
+            assert_matches_schema({}, schema, message="Payload must include id")
+
+    def test_assert_matches_schema_sentinel_includes_schema_and_actual(self, caplog):
+        schema = {"type": "object", "required": ["id"]}
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            assert_matches_schema({"id": 1}, schema)
+
+        sentinel_line = next(r for r in caplog.records if "__API_ASSERT__" in r.message)
+        payload = json.loads(sentinel_line.message.split("__API_ASSERT__", 1)[1].strip())
+        assert json.loads(payload["schema"]) == schema
+        assert json.loads(payload["actual"]) == {"id": 1}
 
 
 # ---------------------------------------------------------------------------

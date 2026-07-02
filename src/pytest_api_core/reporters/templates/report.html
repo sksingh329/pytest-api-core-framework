@@ -151,6 +151,13 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align:
 .assert-detail { color: #94a3b8; font-family: "SF Mono", "Fira Code", monospace; }
 .assert-detail .exp { color: #86efac; }
 .assert-detail .got { color: #fca5a5; }
+.assert-errors { margin: 4px 0 0 0; padding-left: 18px; color: #fca5a5; }
+.assert-errors li { margin: 2px 0; }
+.assert-schema-detail { margin: 2px 0 8px 30px; }
+.assert-schema-detail .detail-label { margin-top: 6px; }
+.assert-schema-detail summary { cursor: pointer; font-size: 11px; color: #94a3b8;
+                                 user-select: none; }
+.assert-schema-detail summary:hover { color: #e2e8f0; }
 
 footer { text-align: center; padding: 24px; color: var(--text-muted); font-size: 12px; }
 
@@ -342,6 +349,16 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <div class="assert-row {% if a.passed %}assert-pass{% else %}assert-fail{% endif %}">
                   <span class="assert-icon">{% if a.passed %}✅{% else %}❌{% endif %}</span>
                   <span class="assert-name">{{ a.name }}</span>
+                  {% if a.name == 'assert_matches_schema' %}
+                  <span class="assert-detail">
+                    {% if a.errors is defined and a.errors %}
+                      {{ a.errors | length }} error(s):
+                      <ul class="assert-errors">
+                        {% for err in a.errors %}<li>{{ err }}</li>{% endfor %}
+                      </ul>
+                    {% endif %}
+                  </span>
+                  {% else %}
                   <span class="assert-detail">
                     {% if a.path is defined %}
                       path=<span class="exp">{{ a.path }}</span> &nbsp;
@@ -366,7 +383,17 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                       max={{ a.max_ms }}ms &nbsp; actual=<span class="{% if a.passed %}exp{% else %}got{% endif %}">{{ a.actual_ms }}ms</span>
                     {% endif %}
                   </span>
+                  {% endif %}
                 </div>
+                {% if a.name == 'assert_matches_schema' and a.schema is defined %}
+                <details class="assert-schema-detail">
+                  <summary>Schema details</summary>
+                  <div class="detail-label">SCHEMA</div>
+                  <pre class="http-body-pre">{{ a.schema }}</pre>
+                  <div class="detail-label">ACTUAL</div>
+                  <pre class="http-body-pre">{{ a.actual }}</pre>
+                </details>
+                {% endif %}
                 {% endfor %}
               </div>
             </div>
