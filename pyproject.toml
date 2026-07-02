@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytest-api-core"
-version = "1.0.0"
+version = "1.0.3"
 description = "Pytest API automation framework with custom HTML reporting, reusable fixtures, and fluent assertions"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -24,11 +24,11 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "pytest>=7.4",
-    "requests>=2.31",
-    "Jinja2>=3.1",
-    "urllib3>=2.0",
-    "jsonschema>=4.20",
+    "pytest>=7.4,<10.0",
+    "requests>=2.31,<3.0",
+    "Jinja2>=3.1,<4.0",
+    "urllib3>=2.0,<3.0",
+    "jsonschema>=4.20,<5.0",
 ]
 
 [project.optional-dependencies]

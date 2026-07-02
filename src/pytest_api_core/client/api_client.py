@@ -9,12 +9,13 @@ Features
 - Pluggable auth strategies
 - Returns APIResponse objects for use with the fluent assertion API
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import time
-from typing import Any
+from typing import Any, Sequence
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -24,14 +25,12 @@ from pytest_api_core.client.api_response import APIResponse
 
 log = logging.getLogger("pytest_api_core.client")
 
+# Sentinel distinguishing "caller didn't pass retry=" (build one from the
+# retry_total/retry_backoff_factor/retry_methods primitives) from an explicit
+# retry=None (disable retries) or retry=<custom Retry instance>.
+_UNSET: Any = object()
 
-_DEFAULT_RETRY = Retry(
-    total=3,
-    backoff_factor=0.3,
-    status_forcelist=(500, 502, 503, 504),
-    allowed_methods={"GET", "OPTIONS", "HEAD"},
-    raise_on_status=False,
-)
+_DEFAULT_RETRY_STATUS_FORCELIST = (500, 502, 503, 504)
 
 
 class APIClient:
@@ -52,7 +51,18 @@ class APIClient:
     default_headers:
         Headers merged into every request.
     retry:
-        urllib3 Retry config.  Pass ``None`` to disable retries.
+        Pre-built urllib3 ``Retry`` instance, for full manual control. Pass
+        ``None`` to disable retries entirely. Leave unset (the default) to
+        build one from *retry_total* / *retry_backoff_factor* / *retry_methods*.
+    retry_total:
+        Max retry attempts for transient failures (default: 3). Ignored if
+        *retry* is explicitly passed.
+    retry_backoff_factor:
+        Backoff factor between retries, e.g. 0.3 -> 0s, 0.3s, 0.6s, 1.2s, ...
+        (default: 0.3). Ignored if *retry* is explicitly passed.
+    retry_methods:
+        HTTP methods eligible for retry (default: GET, HEAD, OPTIONS — the
+        idempotent methods). Ignored if *retry* is explicitly passed.
     """
 
     def __init__(
@@ -62,7 +72,10 @@ class APIClient:
         timeout: int | float = 30,
         verify_ssl: bool = True,
         default_headers: dict[str, str] | None = None,
-        retry: Retry | None = _DEFAULT_RETRY,
+        retry: Retry | None = _UNSET,
+        retry_total: int = 3,
+        retry_backoff_factor: float = 0.3,
+        retry_methods: Sequence[str] = ("GET", "HEAD", "OPTIONS"),
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
@@ -75,6 +88,15 @@ class APIClient:
 
         if default_headers:
             self._session.headers.update(default_headers)
+
+        if retry is _UNSET:
+            retry = Retry(
+                total=retry_total,
+                backoff_factor=retry_backoff_factor,
+                status_forcelist=_DEFAULT_RETRY_STATUS_FORCELIST,
+                allowed_methods=set(retry_methods),
+                raise_on_status=False,
+            )
 
         if retry:
             adapter = HTTPAdapter(max_retries=retry)
@@ -151,7 +173,8 @@ class APIClient:
                     "method": method,
                     "url": url,
                     "req_headers": {
-                        k: v for k, v in dict(self._session.headers).items()
+                        k: v
+                        for k, v in dict(self._session.headers).items()
                         if k.lower() not in ("authorization",)  # never log auth tokens
                     },
                     "req_body": api_resp.request_body_text()[:2000],

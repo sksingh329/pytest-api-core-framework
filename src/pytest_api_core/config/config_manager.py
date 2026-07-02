@@ -12,6 +12,7 @@ Usage
     manager = ConfigManager(env="staging", settings_module="config.settings")
     cfg = manager.load()
 """
+
 from __future__ import annotations
 
 import importlib
@@ -26,11 +27,11 @@ _DEFAULTS: dict[str, Any] = {
     "timeout": 30,
     "verify_ssl": True,
     "headers": {},
-    "retry": {
-        "total": 3,
-        "backoff_factor": 0.3,
-        "status_forcelist": [500, 502, 503, 504],
-    },
+    # Retry policy applied by APIClient — see api_retry_* below for how to
+    # override these via settings.py / CLI flags / env vars.
+    "api_retry_total": 3,
+    "api_retry_backoff_factor": 0.3,
+    "api_retry_methods": ["GET", "HEAD", "OPTIONS"],
 }
 
 # Maps env-var names → config keys
@@ -38,7 +39,10 @@ _ENV_VAR_MAP: dict[str, str] = {
     "API_BASE_URL": "base_url",
     "API_TIMEOUT": "timeout",
     "API_VERIFY_SSL": "verify_ssl",
-    "API_TOKEN": "_token",          # consumed by fixtures, not stored in cfg directly
+    "API_TOKEN": "_token",  # consumed by fixtures, not stored in cfg directly
+    "API_RETRY_TOTAL": "api_retry_total",
+    "API_RETRY_BACKOFF_FACTOR": "api_retry_backoff_factor",
+    "API_RETRY_METHODS": "api_retry_methods",
 }
 
 
@@ -111,7 +115,9 @@ class ConfigManager:
         try:
             module = importlib.import_module(self._settings_module)
         except ModuleNotFoundError:
-            log.warning("Settings module not found: %s — using defaults only", self._settings_module)
+            log.warning(
+                "Settings module not found: %s — using defaults only", self._settings_module
+            )
             return {}
 
         environments = getattr(module, "ENVIRONMENTS", None)
@@ -123,7 +129,8 @@ class ConfigManager:
         if not settings_class:
             log.warning(
                 "Environment %r not in ENVIRONMENTS %s — using defaults only",
-                self._env, list(environments.keys()),
+                self._env,
+                list(environments.keys()),
             )
             return {}
 
@@ -132,13 +139,17 @@ class ConfigManager:
     @staticmethod
     def _coerce(key: str, raw: str) -> Any:
         """Coerce env-var strings to appropriate Python types."""
-        if key in ("timeout",):
+        if key in ("timeout", "api_retry_total"):
             try:
                 return int(raw)
             except ValueError:
                 return float(raw)
         if key == "verify_ssl":
             return raw.lower() not in ("0", "false", "no")
+        if key == "api_retry_backoff_factor":
+            return float(raw)
+        if key == "api_retry_methods":
+            return [m.strip().upper() for m in raw.split(",") if m.strip()]
         return raw
 
 

@@ -61,6 +61,44 @@ class TestAPIClient:
         resp = client.get("https://other.example.com/data")
         assert resp.status_code == 200
 
+    def test_client_default_retry_policy(self):
+        c = APIClient(base_url="https://api.example.com")
+        retry = c._session.get_adapter("https://api.example.com").max_retries
+        assert retry.total == 3
+        assert retry.backoff_factor == 0.3
+        assert retry.allowed_methods == {"GET", "HEAD", "OPTIONS"}
+
+    def test_client_custom_retry_primitives(self):
+        c = APIClient(
+            base_url="https://api.example.com",
+            retry_total=5,
+            retry_backoff_factor=1.5,
+            retry_methods=["GET", "POST"],
+        )
+        retry = c._session.get_adapter("https://api.example.com").max_retries
+        assert retry.total == 5
+        assert retry.backoff_factor == 1.5
+        assert retry.allowed_methods == {"GET", "POST"}
+
+    def test_client_retry_none_disables_retry(self):
+        c = APIClient(base_url="https://api.example.com", retry=None)
+        adapter = c._session.get_adapter("https://api.example.com")
+        # Default HTTPAdapter's max_retries has total=0 (no retrying)
+        assert adapter.max_retries.total == 0
+
+    def test_client_explicit_retry_object_overrides_primitives(self):
+        from urllib3.util.retry import Retry
+
+        custom = Retry(total=9)
+        c = APIClient(
+            base_url="https://api.example.com",
+            retry=custom,
+            retry_total=1,  # should be ignored since retry= was passed explicitly
+        )
+        retry = c._session.get_adapter("https://api.example.com").max_retries
+        assert retry is custom
+        assert retry.total == 9
+
 
 # ---------------------------------------------------------------------------
 # Assertions — happy paths
@@ -314,6 +352,66 @@ class TestConfigManager:
             assert cfg["base_url"] == "https://override.example.com"
         finally:
             del sys.modules["_test_settings_override"]
+
+    def test_config_retry_defaults(self):
+        mgr = ConfigManager(env="nonexistent", settings_module=None)
+        cfg = mgr.load()
+        assert cfg["api_retry_total"] == 3
+        assert cfg["api_retry_backoff_factor"] == 0.3
+        assert cfg["api_retry_methods"] == ["GET", "HEAD", "OPTIONS"]
+
+    def test_config_retry_settings_module_override(self):
+        import sys
+        import types
+
+        mod = types.ModuleType("_test_settings_retry")
+        from pytest_api_core.config.base_settings import BaseSettings
+
+        class FlakyStagingSettings(BaseSettings):
+            api_retry_total = 5
+            api_retry_backoff_factor = 1.0
+
+        mod.ENVIRONMENTS = {"staging": FlakyStagingSettings}
+        sys.modules["_test_settings_retry"] = mod
+        try:
+            mgr = ConfigManager(env="staging", settings_module="_test_settings_retry")
+            cfg = mgr.load()
+            assert cfg["api_retry_total"] == 5
+            assert cfg["api_retry_backoff_factor"] == 1.0
+            # unspecified retry method list should still fall back to the default
+            assert cfg["api_retry_methods"] == ["GET", "HEAD", "OPTIONS"]
+        finally:
+            del sys.modules["_test_settings_retry"]
+
+    def test_config_retry_cli_override(self):
+        mgr = ConfigManager(
+            env="nonexistent",
+            settings_module=None,
+            cli_overrides={"api_retry_total": 7},
+        )
+        cfg = mgr.load()
+        assert cfg["api_retry_total"] == 7
+
+    def test_config_retry_env_var_override(self, monkeypatch):
+        monkeypatch.setenv("API_RETRY_TOTAL", "10")
+        monkeypatch.setenv("API_RETRY_BACKOFF_FACTOR", "2.5")
+        monkeypatch.setenv("API_RETRY_METHODS", "get, post ,put")
+        mgr = ConfigManager(env="nonexistent", settings_module=None)
+        cfg = mgr.load()
+        assert cfg["api_retry_total"] == 10
+        assert cfg["api_retry_backoff_factor"] == 2.5
+        assert cfg["api_retry_methods"] == ["GET", "POST", "PUT"]
+
+    def test_config_retry_env_var_wins_over_cli_and_settings(self, monkeypatch):
+        """Env var (highest priority) should win over a CLI override."""
+        monkeypatch.setenv("API_RETRY_TOTAL", "99")
+        mgr = ConfigManager(
+            env="nonexistent",
+            settings_module=None,
+            cli_overrides={"api_retry_total": 7},
+        )
+        cfg = mgr.load()
+        assert cfg["api_retry_total"] == 99
 
 
 # ---------------------------------------------------------------------------

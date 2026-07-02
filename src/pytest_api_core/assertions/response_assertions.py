@@ -39,7 +39,6 @@ class ResponseAssertions:
 
     def __init__(self, response: APIResponse) -> None:
         self._response = response
-        # jsonpath-ng is optional; fall back to simple key lookup if absent
         self._json_path_value: Any = _UNSET
         self._json_path_path: str | None = None
 
@@ -216,11 +215,19 @@ class ResponseAssertions:
         """
         Navigate to a value in the JSON body using a simple path expression.
 
-        Supported syntax:
+        This is a small built-in subset, not full JSONPath — no external
+        dependency required.
+
+        Supported:
           ``$.key``            — top-level key
           ``$.key.nested``     — nested key
           ``$.items[0].id``    — array index
           ``$[0].id``          — root is array
+
+        Not supported: wildcards (``$.items[*]``), filter expressions
+        (``$.items[?(@.price > 10)]``), recursive descent (``$..id``), and
+        slices (``$.items[0:2]``). For those, extract with a library like
+        ``jsonpath-ng`` yourself and assert on the result directly.
 
         The extracted value is stored for the following ``.equals()`` /
         ``.matches()`` call.
@@ -277,7 +284,12 @@ class ResponseAssertions:
     # ------------------------------------------------------------------
 
     def response_time_under(self, max_ms: float) -> "ResponseAssertions":
-        """Assert the response time is under *max_ms* milliseconds."""
+        """Assert the response time is under *max_ms* milliseconds.
+
+        ``elapsed_ms`` is measured around the whole ``session.request()`` call,
+        so it includes time spent on any urllib3 retries and backoff sleeps —
+        not just the final successful attempt.
+        """
         actual = self._response.elapsed_ms
         passed = actual < max_ms
         _emit("response_time_under", passed, max_ms=max_ms, actual_ms=round(actual, 1))

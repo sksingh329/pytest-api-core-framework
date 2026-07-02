@@ -69,7 +69,7 @@ Auth tokens are **never logged** — filtered in `_request()` before emitting th
 
 ### Fluent Assertions (`assertions/`)
 `assert_that(response)` returns a `ResponseAssertions` chain. Key design points:
-- `json_path()` uses a built-in path resolver (`_resolve_path`) — no `jsonpath-ng` dependency required. Supports `$.key`, `$.key.nested`, `$.items[0].id`, `$[0].id`.
+- `json_path()` uses a built-in path resolver (`_resolve_path`) — no `jsonpath-ng` dependency required. Supported: `$.key`, `$.key.nested`, `$.items[0].id`, `$[0].id`. Not supported: wildcards, filter expressions, recursive descent, slices.
 - `json_path()` stores the extracted value in `_json_path_value`; `.equals()` / `.matches()` / `.is_not_none()` consume it and reset to `_UNSET`.
 - Each assertion emits a `__API_ASSERT__` debug sentinel parsed by `HTMLReporter` to display pass/fail in the report.
 
