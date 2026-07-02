@@ -12,19 +12,19 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 ## 2. Install the plugin
 
 ```bash
-pip install pytest-api-core==1.0.2
+pip install pytest-api-core==1.0.3
 ```
 
 With `.env` file support (recommended):
 
 ```bash
-pip install "pytest-api-core[dotenv]==1.0.2"
+pip install "pytest-api-core[dotenv]==1.0.3"
 ```
 
 ### Pin in `requirements.txt`
 
 ```
-pytest-api-core[dotenv]==1.0.2
+pytest-api-core[dotenv]==1.0.3
 ```
 
 ```bash
@@ -65,6 +65,8 @@ class DevSettings(BaseSettings):
 class StagingSettings(DevSettings):
     base_url = os.environ.get("API_BASE_URL", "https://api.staging.mycompany.com")
     timeout  = 60
+    api_retry_total = 5              # staging is flakier — retry more (default: 3)
+    api_retry_backoff_factor = 1.0   # and wait longer between attempts (default: 0.3)
 
 
 class ProdSettings(BaseSettings):
@@ -349,6 +351,9 @@ pytest tests/ --api-env=staging
 # Override base URL
 pytest tests/ --api-base-url=https://api.staging.mycompany.com
 
+# Override retry policy (e.g. a flakier environment)
+pytest tests/ --api-retry-total=5 --api-retry-backoff-factor=1.0
+
 # Verbose debug output (shows full request/response)
 pytest tests/ --api-log-level=DEBUG -s
 
@@ -371,6 +376,9 @@ Shell env vars take highest priority and always override `settings.py` values.
 | `API_BASE_URL` | Overrides `base_url` from settings |
 | `API_TIMEOUT` | Overrides `timeout` (integer seconds) |
 | `API_VERIFY_SSL` | Set to `false` / `0` / `no` to disable SSL verification |
+| `API_RETRY_TOTAL` | Overrides max retry attempts (default: `3`) |
+| `API_RETRY_BACKOFF_FACTOR` | Overrides retry backoff factor (default: `0.3`) |
+| `API_RETRY_METHODS` | Overrides retryable HTTP methods, comma-separated (default: `GET,HEAD,OPTIONS`) |
 | `BEARER_TOKEN` | Read by the `conftest.py` override above |
 | `API_TOKEN` | Read by the built-in `api_client` fixture (if not overriding) |
 | `API_USERNAME` / `API_PASSWORD` | Read by `api_basic_auth` fixture |
@@ -382,7 +390,7 @@ Shell env vars take highest priority and always override `settings.py` values.
 
 ```yaml
 - name: Install dependencies
-  run: pip install "pytest-api-core[dotenv]==1.0.2"
+  run: pip install "pytest-api-core[dotenv]==1.0.3"
 
 - name: Run API tests
   run: pytest tests/ -v
@@ -486,4 +494,44 @@ from jsonpath_ng import parse
 
 matches = [m.value for m in parse("$.items[*].id").find(r.json())]
 assert matches == [1, 2, 3]
+```
+
+### Standalone assertion helpers
+
+For comparing arbitrary values outside the `assert_that()` chain — e.g. a value
+you've extracted yourself, or a non-HTTP value — use the standalone functions
+instead. They're plain functions, not tied to an `APIResponse`, but still show up
+in the HTML report the same way:
+
+```python
+from pytest_api_core.assertions import (
+    assert_equal,
+    assert_not_equal,
+    assert_equal_ignore_case,
+    assert_contains,
+    assert_matches,
+    assert_is_empty,
+    assert_is_not_empty,
+    assert_matches_schema,
+)
+
+assert_equal(actual, "expected-value")
+assert_contains(actual, "substring")
+assert_matches(actual, r"^\d+$")
+assert_is_not_empty(actual)
+
+# All of the above accept an optional custom message:
+assert_equal(actual, "expected-value", message="Usernames must match")
+
+# JSON Schema validation for any dict/value (not just a response body).
+# Unlike assert_that(r).matches_schema(...), which stops at the first
+# violation, this collects *all* validation errors into one AssertionError:
+assert_matches_schema(payload, {
+    "type": "object",
+    "required": ["id", "name"],
+    "properties": {
+        "id":   {"type": "integer"},
+        "name": {"type": "string"},
+    },
+})
 ```

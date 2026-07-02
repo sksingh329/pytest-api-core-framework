@@ -14,6 +14,8 @@
   `response_time_under()` measures the whole request including any retries, not just the final attempt)
 - **Auth strategies** — Bearer token, Basic, API Key (header/query), OAuth2 client credentials
   (need something else, like an OAuth2 refresh-token flow or signed requests? subclass `AuthBase` — see [docs/QUICKSTART.md](docs/QUICKSTART.md#custom-auth-handlers))
+- **Standalone assertion helpers** — `assert_equal`, `assert_contains`, `assert_matches`, `assert_matches_schema`, etc. for values outside an `APIResponse` — see [docs/QUICKSTART.md](docs/QUICKSTART.md#standalone-assertion-helpers)
+- **Configurable retry policy** — max attempts, backoff factor, and retryable methods, overridable per environment (see below)
 - **Environment config** — Python `settings.py` classes + `.env` file + env var overrides
 - **Custom HTML report** — self-contained file with charts, filterable table, and request/response details
 - **Auto-registered fixtures** — zero boilerplate in consuming projects
@@ -23,13 +25,13 @@
 ## Installation
 
 ```bash
-pip install pytest-api-core==1.0.2
+pip install pytest-api-core==1.0.3
 ```
 
 With `.env` file support (recommended):
 
 ```bash
-pip install "pytest-api-core[dotenv]==1.0.2"
+pip install "pytest-api-core[dotenv]==1.0.3"
 ```
 
 ---
@@ -113,6 +115,8 @@ something you'd want to toggle per environment).
 | `api_log_level` | Framework log level | `WARNING` |
 | `api_html_report` | HTML report path (supports `{env}`, `{timestamp}`) | — |
 | `api_html_theme` | Report theme: `light` or `dark` | `dark` |
+| `api_html_title` | Report browser tab title | `API Test Report` |
+| `api_html_header` | Report page header text | `API Test Report` |
 
 ### CLI flags
 

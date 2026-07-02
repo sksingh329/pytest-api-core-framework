@@ -36,7 +36,7 @@ def api_config(request: pytest.FixtureRequest) -> dict[str, Any]:
     """
     Returns the fully-resolved configuration dict for the active environment.
 
-    Override via CLI: ``--api-env=staging --api-config-dir=config/env``
+    Override via CLI: ``--api-env=staging``
     Override via ini: ``api_env = staging``
     Override via env-var: ``API_ENV=staging``
 
