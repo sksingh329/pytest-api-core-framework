@@ -5,7 +5,7 @@ Target API: JSONPlaceholder (https://jsonplaceholder.typicode.com) — free fake
 
 import pytest
 
-from pytest_api_core.assertions import assert_equal, assert_that
+from pytest_api_core.assertions import assert_equal, assert_matches_schema, assert_that
 
 # ---------------------------------------------------------------------------
 # GET tests
@@ -155,6 +155,23 @@ class TestUsers:
         }
         response = api_client.get("/users/1")
         assert_that(response).status_is(200).matches_schema(schema)
+
+    @pytest.mark.api
+    def test_get_user_schema_standalone_util(self, api_client):
+        """GET /users/1 body should conform to schema via the standalone assert_matches_schema()."""
+        schema = {
+            "type": "object",
+            "required": ["id", "name", "email", "username"],
+            "properties": {
+                "id": {"type": "integer"},
+                "name": {"type": "string"},
+                "email": {"type": "string"},
+                "username": {"type": "string"},
+            },
+        }
+        response = api_client.get("/users/1")
+        assert_that(response).status_is(200)
+        assert_matches_schema(response.json(), schema)
 
 
 # ---------------------------------------------------------------------------

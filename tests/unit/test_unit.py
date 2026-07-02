@@ -4,6 +4,7 @@ Uses 'responses' library to mock HTTP calls — no real network needed.
 """
 
 import json
+import logging
 
 import pytest
 import responses as rsps_lib
@@ -313,3 +314,29 @@ class TestConfigManager:
             assert cfg["base_url"] == "https://override.example.com"
         finally:
             del sys.modules["_test_settings_override"]
+
+
+# ---------------------------------------------------------------------------
+# HTML reporter — setup/teardown phase log capture
+# ---------------------------------------------------------------------------
+
+_phase_log = logging.getLogger("pytest_api_core.tests.phase_demo")
+
+
+@pytest.fixture()
+def logging_fixture():
+    _phase_log.debug("fixture setup log line")
+    yield "ready"
+    _phase_log.debug("fixture teardown log line")
+
+
+class TestReportPhaseLogging:
+    pytestmark = pytest.mark.unit
+
+    def test_setup_and_teardown_logs_are_captured(self, logging_fixture):
+        """Exercises a fixture that logs during both setup and teardown.
+
+        Used to verify HTMLReporter.pytest_runtest_logreport captures logs from
+        all three pytest phases (setup/call/teardown), not just 'call'.
+        """
+        assert logging_fixture == "ready"
