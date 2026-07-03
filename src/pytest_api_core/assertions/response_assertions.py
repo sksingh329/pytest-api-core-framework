@@ -13,6 +13,7 @@ Usage
 Every assertion method returns *self* so calls can be chained freely.
 A clear AssertionError with context is raised on failure.
 """
+
 from __future__ import annotations
 
 import json
@@ -38,8 +39,8 @@ class ResponseAssertions:
 
     def __init__(self, response: APIResponse) -> None:
         self._response = response
-        # jsonpath-ng is optional; fall back to simple key lookup if absent
         self._json_path_value: Any = _UNSET
+        self._json_path_path: str | None = None
 
     # ------------------------------------------------------------------
     # Status code
@@ -65,8 +66,7 @@ class ResponseAssertions:
         _emit("status_in", passed, expected=list(expected), actual=actual)
         if not passed:
             raise AssertionError(
-                f"Expected status in {expected}, got {actual}.\n"
-                f"  URL: {self._response.url}"
+                f"Expected status in {expected}, got {actual}.\n" f"  URL: {self._response.url}"
             )
         return self
 
@@ -86,14 +86,18 @@ class ResponseAssertions:
     def is_client_error(self) -> "ResponseAssertions":
         """Assert 4xx status code."""
         actual = self._response.status_code
-        if not (400 <= actual < 500):
+        passed = 400 <= actual < 500
+        _emit("is_client_error", passed, actual=actual)
+        if not passed:
             raise AssertionError(f"Expected 4xx status, got {actual}.")
         return self
 
     def is_server_error(self) -> "ResponseAssertions":
         """Assert 5xx status code."""
         actual = self._response.status_code
-        if not (500 <= actual < 600):
+        passed = 500 <= actual < 600
+        _emit("is_server_error", passed, actual=actual)
+        if not passed:
             raise AssertionError(f"Expected 5xx status, got {actual}.")
         return self
 
@@ -103,7 +107,9 @@ class ResponseAssertions:
 
     def has_header(self, name: str) -> "ResponseAssertions":
         """Assert a response header with *name* is present (case-insensitive)."""
-        if name.lower() not in {k.lower() for k in self._response.headers}:
+        passed = name.lower() in {k.lower() for k in self._response.headers}
+        _emit("has_header", passed, header=name)
+        if not passed:
             raise AssertionError(
                 f"Expected header '{name}' to be present.\n"
                 f"  Headers: {dict(self._response.headers)}"
@@ -113,19 +119,19 @@ class ResponseAssertions:
     def header_equals(self, name: str, expected: str) -> "ResponseAssertions":
         """Assert header *name* equals *expected* (case-insensitive name match)."""
         actual = self._response.headers.get(name)
-        if actual != expected:
-            raise AssertionError(
-                f"Expected header '{name}' = {expected!r}, got {actual!r}."
-            )
+        passed = actual == expected
+        _emit("header_equals", passed, header=name, expected=expected, actual=actual)
+        if not passed:
+            raise AssertionError(f"Expected header '{name}' = {expected!r}, got {actual!r}.")
         return self
 
     def content_type_contains(self, fragment: str) -> "ResponseAssertions":
         """Assert the Content-Type header contains *fragment*."""
         ct = self._response.headers.get("Content-Type", "")
-        if fragment.lower() not in ct.lower():
-            raise AssertionError(
-                f"Expected Content-Type to contain {fragment!r}, got {ct!r}."
-            )
+        passed = fragment.lower() in ct.lower()
+        _emit("content_type_contains", passed, expected=fragment, actual=ct)
+        if not passed:
+            raise AssertionError(f"Expected Content-Type to contain {fragment!r}, got {ct!r}.")
         return self
 
     # ------------------------------------------------------------------
@@ -156,14 +162,14 @@ class ResponseAssertions:
         passed = actual == expected
         _emit("key_equals", passed, key=key, expected=expected, actual=actual)
         if not passed:
-            raise AssertionError(
-                f"Expected body['{key}'] = {expected!r}, got {actual!r}."
-            )
+            raise AssertionError(f"Expected body['{key}'] = {expected!r}, got {actual!r}.")
         return self
 
     def body_contains(self, text: str) -> "ResponseAssertions":
         """Assert the raw response text contains *text*."""
-        if text not in self._response.text:
+        passed = text in self._response.text
+        _emit("body_contains", passed, expected=text)
+        if not passed:
             raise AssertionError(
                 f"Expected response body to contain {text!r}.\n"
                 f"  Body (first 300 chars): {self._response.text[:300]}"
@@ -173,7 +179,9 @@ class ResponseAssertions:
     def is_json_list(self) -> "ResponseAssertions":
         """Assert the JSON body is an array."""
         body = self._json_body()
-        if not isinstance(body, list):
+        passed = isinstance(body, list)
+        _emit("is_json_list", passed, actual=type(body).__name__)
+        if not passed:
             raise AssertionError(f"Expected JSON array, got {type(body).__name__}.")
         return self
 
@@ -181,20 +189,22 @@ class ResponseAssertions:
         """Assert the JSON array body has exactly *expected* items."""
         body = self._json_body()
         if not isinstance(body, list):
+            _emit("list_length", False, expected=expected, actual=type(body).__name__)
             raise AssertionError(f"Expected JSON array, got {type(body).__name__}.")
-        if len(body) != expected:
-            raise AssertionError(
-                f"Expected JSON list length {expected}, got {len(body)}."
-            )
+        passed = len(body) == expected
+        _emit("list_length", passed, expected=expected, actual=len(body))
+        if not passed:
+            raise AssertionError(f"Expected JSON list length {expected}, got {len(body)}.")
         return self
 
     def list_length_gte(self, minimum: int) -> "ResponseAssertions":
         """Assert the JSON array length is at least *minimum*."""
         body = self._json_body()
-        if not isinstance(body, list) or len(body) < minimum:
-            raise AssertionError(
-                f"Expected JSON list length >= {minimum}, got {len(body) if isinstance(body, list) else 'non-list'}."
-            )
+        actual = len(body) if isinstance(body, list) else "non-list"
+        passed = isinstance(body, list) and len(body) >= minimum
+        _emit("list_length_gte", passed, expected=minimum, actual=actual)
+        if not passed:
+            raise AssertionError(f"Expected JSON list length >= {minimum}, got {actual}.")
         return self
 
     # ------------------------------------------------------------------
@@ -205,17 +215,26 @@ class ResponseAssertions:
         """
         Navigate to a value in the JSON body using a simple path expression.
 
-        Supported syntax:
+        This is a small built-in subset, not full JSONPath — no external
+        dependency required.
+
+        Supported:
           ``$.key``            — top-level key
           ``$.key.nested``     — nested key
           ``$.items[0].id``    — array index
           ``$[0].id``          — root is array
+
+        Not supported: wildcards (``$.items[*]``), filter expressions
+        (``$.items[?(@.price > 10)]``), recursive descent (``$..id``), and
+        slices (``$.items[0:2]``). For those, extract with a library like
+        ``jsonpath-ng`` yourself and assert on the result directly.
 
         The extracted value is stored for the following ``.equals()`` /
         ``.matches()`` call.
         """
         body = self._json_body()
         self._json_path_value = _resolve_path(body, path)
+        self._json_path_path = path
         return self
 
     def equals(self, expected: Any) -> "ResponseAssertions":
@@ -223,8 +242,12 @@ class ResponseAssertions:
         if self._json_path_value is _UNSET:
             raise RuntimeError("Call .json_path() before .equals()")
         actual = self._json_path_value
+        path = self._json_path_path
         self._json_path_value = _UNSET
-        if actual != expected:
+        self._json_path_path = None
+        passed = actual == expected
+        _emit("equals", passed, path=path, expected=expected, actual=actual)
+        if not passed:
             raise AssertionError(f"Expected {expected!r}, got {actual!r}.")
         return self
 
@@ -233,11 +256,13 @@ class ResponseAssertions:
         if self._json_path_value is _UNSET:
             raise RuntimeError("Call .json_path() before .matches()")
         actual = str(self._json_path_value)
+        path = self._json_path_path
         self._json_path_value = _UNSET
-        if not re.search(pattern, actual):
-            raise AssertionError(
-                f"Expected value to match /{pattern}/, got {actual!r}."
-            )
+        self._json_path_path = None
+        passed = re.search(pattern, actual) is not None
+        _emit("matches", passed, path=path, pattern=pattern, actual=actual)
+        if not passed:
+            raise AssertionError(f"Expected value to match /{pattern}/, got {actual!r}.")
         return self
 
     def is_not_none(self) -> "ResponseAssertions":
@@ -245,8 +270,12 @@ class ResponseAssertions:
         if self._json_path_value is _UNSET:
             raise RuntimeError("Call .json_path() before .is_not_none()")
         actual = self._json_path_value
+        path = self._json_path_path
         self._json_path_value = _UNSET
-        if actual is None:
+        self._json_path_path = None
+        passed = actual is not None
+        _emit("is_not_none", passed, path=path, actual=actual)
+        if not passed:
             raise AssertionError("Expected value to be non-null.")
         return self
 
@@ -255,7 +284,12 @@ class ResponseAssertions:
     # ------------------------------------------------------------------
 
     def response_time_under(self, max_ms: float) -> "ResponseAssertions":
-        """Assert the response time is under *max_ms* milliseconds."""
+        """Assert the response time is under *max_ms* milliseconds.
+
+        ``elapsed_ms`` is measured around the whole ``session.request()`` call,
+        so it includes time spent on any urllib3 retries and backoff sleeps —
+        not just the final successful attempt.
+        """
         actual = self._response.elapsed_ms
         passed = actual < max_ms
         _emit("response_time_under", passed, max_ms=max_ms, actual_ms=round(actual, 1))
@@ -281,7 +315,9 @@ class ResponseAssertions:
                 "jsonschema is required for schema validation: pip install jsonschema"
             )
         except jsonschema.ValidationError as exc:
+            _emit("matches_schema", False, actual=exc.message)
             raise AssertionError(f"Schema validation failed: {exc.message}") from exc
+        _emit("matches_schema", True)
         return self
 
     # ------------------------------------------------------------------
@@ -306,6 +342,7 @@ class ResponseAssertions:
 
 class _Unset:
     """Sentinel for unset json_path value."""
+
     def __repr__(self) -> str:
         return "<UNSET>"
 

@@ -2,6 +2,7 @@
 Thin wrapper around requests.Response that adds helper properties
 and is consumed by the fluent assertion API.
 """
+
 from __future__ import annotations
 
 import json
@@ -16,8 +17,15 @@ class APIResponse:
 
     def __init__(self, response: requests.Response, elapsed_ms: float | None = None) -> None:
         self._response = response
-        self.elapsed_ms: float = elapsed_ms if elapsed_ms is not None else (
-            response.elapsed.total_seconds() * 1000 if response.elapsed else 0.0
+        # APIClient always passes elapsed_ms explicitly, timed around the whole
+        # session.request() call — so it includes any urllib3 retries/backoff,
+        # not just the final attempt. The fallback (response.elapsed) only
+        # covers the final request/response cycle and is used when an
+        # APIResponse is constructed directly from a bare requests.Response.
+        self.elapsed_ms: float = (
+            elapsed_ms
+            if elapsed_ms is not None
+            else (response.elapsed.total_seconds() * 1000 if response.elapsed else 0.0)
         )
 
     # ------------------------------------------------------------------
