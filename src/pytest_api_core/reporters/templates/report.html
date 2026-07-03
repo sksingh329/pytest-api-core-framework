@@ -151,8 +151,27 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align:
 .assert-detail { color: #94a3b8; font-family: "SF Mono", "Fira Code", monospace; }
 .assert-detail .exp { color: #86efac; }
 .assert-detail .got { color: #fca5a5; }
+.assert-errors { margin: 4px 0 0 0; padding-left: 18px; color: #fca5a5; }
+.assert-errors li { margin: 2px 0; }
+.assert-schema-detail { margin: 2px 0 8px 30px; }
+.assert-schema-detail .detail-label { margin-top: 6px; }
+.assert-schema-detail summary { cursor: pointer; font-size: 11px; color: #94a3b8;
+                                 user-select: none; }
+.assert-schema-detail summary:hover { color: #e2e8f0; }
 
 footer { text-align: center; padding: 24px; color: var(--text-muted); font-size: 12px; }
+
+/* ── Run info dropdown ──────────────────────────────────────────────── */
+.header-actions { display: flex; align-items: center; gap: 8px; position: relative; }
+.info-panel { display: none; position: absolute; top: calc(100% + 8px); right: 0;
+              background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+              box-shadow: var(--shadow); padding: 10px; z-index: 10; min-width: 280px; }
+.info-panel.open { display: block; }
+.info-table { width: 100%; border-collapse: collapse; }
+.info-table td { padding: 4px 8px; font-size: 12px; border-bottom: none; }
+.info-table td:first-child { color: var(--text-muted); white-space: nowrap; }
+.info-table td:last-child { color: var(--text); font-family: "SF Mono", "Fira Code", monospace;
+                             text-align: right; word-break: break-all; }
 </style>
 </head>
 <body>
@@ -162,7 +181,17 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
       <small>Generated {{ generated_at }} &nbsp;|&nbsp; Duration: {{ duration }}</small>
     </h1>
   </div>
-  <button class="theme-btn" onclick="toggleTheme()">🌙 Dark</button>
+  <div class="header-actions">
+    <button class="theme-btn" onclick="toggleInfo()">⚙ Run Info</button>
+    <button class="theme-btn" onclick="toggleTheme()">🌙 Dark</button>
+    <div class="info-panel" id="infoPanel">
+      <table class="info-table">
+        {% for label, value in run_info %}
+        <tr><td>{{ label }}</td><td>{{ value }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
 </header>
 
 <div class="main">
@@ -320,23 +349,51 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <div class="assert-row {% if a.passed %}assert-pass{% else %}assert-fail{% endif %}">
                   <span class="assert-icon">{% if a.passed %}✅{% else %}❌{% endif %}</span>
                   <span class="assert-name">{{ a.name }}</span>
+                  {% if a.name == 'assert_matches_schema' %}
                   <span class="assert-detail">
+                    {% if a.errors is defined and a.errors %}
+                      {{ a.errors | length }} error(s):
+                      <ul class="assert-errors">
+                        {% for err in a.errors %}<li>{{ err }}</li>{% endfor %}
+                      </ul>
+                    {% endif %}
+                  </span>
+                  {% else %}
+                  <span class="assert-detail">
+                    {% if a.path is defined %}
+                      path=<span class="exp">{{ a.path }}</span> &nbsp;
+                    {% endif %}
+                    {% if a.pattern is defined %}
+                      pattern=<span class="exp">{{ a.pattern }}</span> &nbsp;
+                    {% endif %}
+                    {% if a.header is defined %}
+                      header=<span class="exp">{{ a.header }}</span> &nbsp;
+                    {% endif %}
+                    {% if a.key is defined %}
+                      key=<span class="exp">{{ a.key }}</span> &nbsp;
+                    {% endif %}
                     {% if a.expected is defined and a.actual is defined %}
                       expected=<span class="exp">{{ a.expected }}</span>
                       &nbsp; actual=<span class="got {% if not a.passed %}got{% endif %}">{{ a.actual }}</span>
-                    {% elif a.key is defined %}
-                      key=<span class="exp">{{ a.key }}</span>
-                      {% if a.expected is defined %}
-                        expected=<span class="exp">{{ a.expected }}</span>
-                        &nbsp; actual=<span class="{% if not a.passed %}got{% else %}exp{% endif %}">{{ a.actual }}</span>
-                      {% endif %}
                     {% elif a.actual is defined %}
                       actual=<span class="{% if a.passed %}exp{% else %}got{% endif %}">{{ a.actual }}</span>
+                    {% elif a.expected is defined %}
+                      expected=<span class="exp">{{ a.expected }}</span>
                     {% elif a.max_ms is defined %}
                       max={{ a.max_ms }}ms &nbsp; actual=<span class="{% if a.passed %}exp{% else %}got{% endif %}">{{ a.actual_ms }}ms</span>
                     {% endif %}
                   </span>
+                  {% endif %}
                 </div>
+                {% if a.name == 'assert_matches_schema' and a.schema is defined %}
+                <details class="assert-schema-detail">
+                  <summary>Schema details</summary>
+                  <div class="detail-label">SCHEMA</div>
+                  <pre class="http-body-pre">{{ a.schema }}</pre>
+                  <div class="detail-label">ACTUAL</div>
+                  <pre class="http-body-pre">{{ a.actual }}</pre>
+                </details>
+                {% endif %}
                 {% endfor %}
               </div>
             </div>
@@ -457,6 +514,20 @@ function applyFilters() {
     }
   });
 }
+
+function toggleInfo() {
+  document.getElementById('infoPanel').classList.toggle('open');
+}
+
+document.addEventListener('click', function(e) {
+  var panel = document.getElementById('infoPanel');
+  if (!panel.classList.contains('open')) return;
+  var withinPanel = panel.contains(e.target);
+  var isToggleBtn = e.target.matches('.header-actions .theme-btn:first-child');
+  if (!withinPanel && !isToggleBtn) {
+    panel.classList.remove('open');
+  }
+});
 
 function toggleTheme() {
   var html = document.documentElement;

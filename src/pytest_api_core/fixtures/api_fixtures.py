@@ -7,11 +7,14 @@ installed — no ``conftest.py`` import required.
 Fixtures
 --------
 api_config      (session)  — resolved config dict for the target environment
-api_client      (session)  — configured APIClient instance
+auth_provider   (session)  — auth strategy passed to APIClient (override this
+                              alone to swap auth without redeclaring api_client)
+api_client      (session)  — configured APIClient instance, depends on auth_provider
 api_bearer_auth (function) — BearerAuth instance (token from cfg or API_TOKEN)
 api_basic_auth  (function) — BasicAuth instance (from API_USERNAME / API_PASSWORD)
 api_key_auth    (function) — APIKeyAuth instance
 """
+
 from __future__ import annotations
 
 import os
@@ -23,7 +26,6 @@ from pytest_api_core.auth.auth_handlers import APIKeyAuth, BasicAuth, BearerAuth
 from pytest_api_core.client.api_client import APIClient
 from pytest_api_core.config.config_manager import ConfigManager
 
-
 # ---------------------------------------------------------------------------
 # Config fixture
 # ---------------------------------------------------------------------------
@@ -34,9 +36,13 @@ def api_config(request: pytest.FixtureRequest) -> dict[str, Any]:
     """
     Returns the fully-resolved configuration dict for the active environment.
 
-    Override via CLI: ``--api-env=staging --api-config-dir=config/env``
+    Override via CLI: ``--api-env=staging``
     Override via ini: ``api_env = staging``
     Override via env-var: ``API_ENV=staging``
+
+    Retry policy (``api_retry_total``, ``api_retry_backoff_factor``,
+    ``api_retry_methods``) follows the same precedence — env var >
+    ``--api-retry-*`` CLI flag > settings class attribute > built-in default.
     """
     env: str | None = (
         request.config.getoption("--api-env", default=None)
@@ -44,14 +50,59 @@ def api_config(request: pytest.FixtureRequest) -> dict[str, Any]:
         or None
     )
     base_url_override: str | None = request.config.getoption("--api-base-url", default=None)
+    retry_total_override: int | None = request.config.getoption("--api-retry-total", default=None)
+    retry_backoff_override: float | None = request.config.getoption(
+        "--api-retry-backoff-factor", default=None
+    )
+    retry_methods_override: str | None = request.config.getoption(
+        "--api-retry-methods", default=None
+    )
     settings_module: str | None = request.config.getini("api_settings_module") or None
+
+    cli_overrides: dict[str, Any] = {}
+    if base_url_override:
+        cli_overrides["base_url"] = base_url_override
+    if retry_total_override is not None:
+        cli_overrides["api_retry_total"] = retry_total_override
+    if retry_backoff_override is not None:
+        cli_overrides["api_retry_backoff_factor"] = retry_backoff_override
+    if retry_methods_override:
+        cli_overrides["api_retry_methods"] = [
+            m.strip().upper() for m in retry_methods_override.split(",") if m.strip()
+        ]
 
     manager = ConfigManager(
         env=env,
-        cli_overrides={"base_url": base_url_override} if base_url_override else None,
+        cli_overrides=cli_overrides or None,
         settings_module=settings_module,
     )
     return manager.load()
+
+
+# ---------------------------------------------------------------------------
+# Auth provider fixture
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def auth_provider(api_config: dict[str, Any]) -> Any:
+    """
+    Auth strategy used by ``api_client``, split out so it can be overridden
+    on its own — without redeclaring ``api_client`` and re-specifying
+    timeout/verify_ssl/base_url/retry just to swap the auth strategy. Most
+    ``conftest.py`` auth overrides only need this fixture, e.g.::
+
+        @pytest.fixture(scope="session")
+        def auth_provider():
+            return BearerAuth(os.environ["BEARER_TOKEN"])
+
+    Defaults to a ``BearerAuth`` built from ``API_TOKEN`` env-var or
+    ``api_config["_token"]``, or ``None`` (no auth) if neither is set.
+    """
+    token = api_config.pop("_token", None) or os.environ.get("API_TOKEN")
+    if token:
+        return BearerAuth(token)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -60,24 +111,22 @@ def api_config(request: pytest.FixtureRequest) -> dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
-def api_client(api_config: dict[str, Any]) -> Generator[APIClient, None, None]:
+def api_client(api_config: dict[str, Any], auth_provider: Any) -> Generator[APIClient, None, None]:
     """
-    Session-scoped APIClient built from *api_config*.
+    Session-scoped APIClient built from *api_config* and *auth_provider*.
 
-    Automatically applies a BearerAuth if ``API_TOKEN`` env-var is set
-    or ``api_config["_token"]`` is present.
+    To override just the auth strategy, override ``auth_provider`` instead of
+    this fixture — see its docstring for an example.
     """
-    auth = None
-    token = api_config.pop("_token", None) or os.environ.get("API_TOKEN")
-    if token:
-        auth = BearerAuth(token)
-
     client = APIClient(
         base_url=api_config["base_url"],
-        auth=auth,
+        auth=auth_provider,
         timeout=api_config.get("timeout", 30),
         verify_ssl=api_config.get("verify_ssl", True),
         default_headers=api_config.get("headers"),
+        retry_total=api_config.get("api_retry_total", 3),
+        retry_backoff_factor=api_config.get("api_retry_backoff_factor", 0.3),
+        retry_methods=api_config.get("api_retry_methods", ("GET", "HEAD", "OPTIONS")),
     )
     yield client
     client.close()
@@ -127,7 +176,5 @@ def api_key_auth() -> APIKeyAuth:
     value = os.environ.get("API_KEY_VALUE", "")
     location = os.environ.get("API_KEY_LOCATION", "header")
     if not value:
-        raise ValueError(
-            "api_key_auth requires API_KEY_VALUE environment variable."
-        )
+        raise ValueError("api_key_auth requires API_KEY_VALUE environment variable.")
     return APIKeyAuth(name, value, location)

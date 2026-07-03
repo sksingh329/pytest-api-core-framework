@@ -3,6 +3,7 @@ pytest plugin entry-point.
 Registered via [project.entry-points."pytest11"] in pyproject.toml so pytest
 auto-discovers and loads it without any conftest.py changes in consuming projects.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -12,14 +13,14 @@ import pytest
 
 from pytest_api_core.config.env_loader import load_env_file
 from pytest_api_core.fixtures.api_fixtures import (
-    api_config,
-    api_client,
-    api_bearer_auth,
     api_basic_auth,
+    api_bearer_auth,
+    api_client,
+    api_config,
     api_key_auth,
+    auth_provider,
 )
 from pytest_api_core.reporters.html_reporter import HTMLReporter
-
 
 # ---------------------------------------------------------------------------
 # CLI options
@@ -60,15 +61,58 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Log level for pytest-api-core internals (default: WARNING)",
     )
+    group.addoption(
+        "--api-retry-total",
+        action="store",
+        type=int,
+        default=None,
+        help="Max retry attempts for transient failures (default: 3)",
+    )
+    group.addoption(
+        "--api-retry-backoff-factor",
+        action="store",
+        type=float,
+        default=None,
+        help="Backoff factor between retries, e.g. 0.3 -> 0s,0.3s,0.6s,1.2s,... (default: 0.3)",
+    )
+    group.addoption(
+        "--api-retry-methods",
+        action="store",
+        default=None,
+        metavar="METHOD,METHOD,...",
+        help="Comma-separated HTTP methods eligible for retry (default: GET,HEAD,OPTIONS)",
+    )
     # Register ini options to suppress "Unknown config option" warnings
     parser.addini("api_env", help="Default environment (e.g. dev, staging, prod)", default="dev")
     parser.addini("api_html_report", help="Output path for the custom HTML report", default=None)
-    parser.addini("api_html_theme", help="Report theme: light or dark (default: dark)", default="dark")
-    parser.addini("api_html_title", help="Report browser tab title (default: API Test Report)", default="API Test Report")
-    parser.addini("api_html_header", help="Report page header text (default: API Test Report)", default="API Test Report")
-    parser.addini("api_log_level", help="Log level for pytest-api-core (DEBUG/INFO/WARNING/ERROR/CRITICAL)", default="WARNING")
-    parser.addini("api_settings_module", help="Dotted module path to settings (e.g. config.settings)", default=None)
-    parser.addini("api_dotenv_file", help="Path to .env file loaded at session start (default: .env)", default=".env")
+    parser.addini(
+        "api_html_theme", help="Report theme: light or dark (default: dark)", default="dark"
+    )
+    parser.addini(
+        "api_html_title",
+        help="Report browser tab title (default: API Test Report)",
+        default="API Test Report",
+    )
+    parser.addini(
+        "api_html_header",
+        help="Report page header text (default: API Test Report)",
+        default="API Test Report",
+    )
+    parser.addini(
+        "api_log_level",
+        help="Log level for pytest-api-core (DEBUG/INFO/WARNING/ERROR/CRITICAL)",
+        default="WARNING",
+    )
+    parser.addini(
+        "api_settings_module",
+        help="Dotted module path to settings (e.g. config.settings)",
+        default=None,
+    )
+    parser.addini(
+        "api_dotenv_file",
+        help="Path to .env file loaded at session start (default: .env)",
+        default=".env",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -96,11 +140,7 @@ def pytest_configure(config: pytest.Config) -> None:
     if not report_path:
         report_path = config.getini("api_html_report")
     if report_path:
-        env = (
-            config.getoption("--api-env", default=None)
-            or config.getini("api_env")
-            or "default"
-        )
+        env = config.getoption("--api-env", default=None) or config.getini("api_env") or "default"
         report_path = _resolve_report_path(report_path, env)
         plugin = HTMLReporter(report_path, config)
         config.pluginmanager.register(plugin, "api-html-reporter")
@@ -118,6 +158,7 @@ def _resolve_report_path(path: str, env: str) -> str:
 
 __all__ = [
     "api_config",
+    "auth_provider",
     "api_client",
     "api_bearer_auth",
     "api_basic_auth",
