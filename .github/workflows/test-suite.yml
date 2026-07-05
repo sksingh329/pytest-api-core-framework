@@ -41,9 +41,7 @@ on:
           - "3.13"
           - "3.14"
 
-# Report is published from the Python 3.12 run; used to gate the artifact upload step below.
 env:
-  REPORT_PYTHON_VERSION: "3.12"
   REPORTS_TO_KEEP: 200
   REPORTS_DOMAIN: "githubreports.apicore.subodhsingh.in"
 
@@ -70,16 +68,20 @@ jobs:
           pip install -e ".[dev,dotenv]"
 
       - name: Run unit tests
-        run: pytest tests/unit/ -v --tb=short --no-header
+        run: >
+          pytest tests/unit/ -v --tb=short --no-header
+          --api-html-report=reports/dev/{timestamp}_py${{ matrix.python-version }}_unit.html
 
       - name: Run e2e tests
-        run: pytest tests/e2e/ -v --tb=short --no-header --api-env=dev
+        run: >
+          pytest tests/e2e/ -v --tb=short --no-header --api-env=dev
+          --api-html-report=reports/dev/{timestamp}_py${{ matrix.python-version }}_e2e.html
 
       - name: Upload HTML report artifact
-        if: always() && matrix.python-version == env.REPORT_PYTHON_VERSION
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: html-report
+          name: html-report-${{ matrix.python-version }}
           path: reports/dev/*.html
           retention-days: 30
 
@@ -94,11 +96,12 @@ jobs:
       group: "pages"
       cancel-in-progress: false
     steps:
-      - name: Download new report artifact
+      - name: Download new report artifacts (all Python versions)
         uses: actions/download-artifact@v4
         with:
-          name: html-report
+          pattern: html-report-*
           path: new-report
+          merge-multiple: true
 
       - name: Checkout existing gh-pages reports
         uses: actions/checkout@v4
@@ -116,21 +119,21 @@ jobs:
             cp gh-pages/reports/*.html site/reports/ 2>/dev/null || true
           fi
 
-          new_file=$(basename "$(ls new-report/report_*.html)")
-          cp "new-report/$new_file" "site/reports/$new_file"
-          echo "source_file=$new_file" >> "$GITHUB_OUTPUT"
+          new_count=$(ls -1 new-report/*.html | wc -l)
+          cp new-report/*.html site/reports/
+          echo "new_count=$new_count" >> "$GITHUB_OUTPUT"
 
           cd site/reports
-          total_before=$(ls -1 report_*.html | wc -l)
+          total_before=$(ls -1 *.html | wc -l)
           pruned=0
           if [ "$total_before" -gt "$REPORTS_TO_KEEP" ]; then
-            to_delete=$(ls -1 report_*.html | sort | head -n -"$REPORTS_TO_KEEP")
+            to_delete=$(ls -1 *.html | sort | head -n -"$REPORTS_TO_KEEP")
             pruned=$(echo "$to_delete" | wc -l)
             echo "$to_delete" | xargs rm --
           fi
           cd ../..
           echo "pruned=$pruned" >> "$GITHUB_OUTPUT"
-          echo "total_reports=$(ls -1 site/reports/report_*.html | wc -l)" >> "$GITHUB_OUTPUT"
+          echo "total_reports=$(ls -1 site/reports/*.html | wc -l)" >> "$GITHUB_OUTPUT"
 
       - name: Generate dashboard index.html
         run: |
@@ -151,11 +154,13 @@ jobs:
             </style></head><body>'
             echo "<h1>pytest-api-core Test Reports</h1>"
             echo "<p class=\"meta\">Newest first · showing up to $REPORTS_TO_KEEP most recent runs</p>"
-            echo '<table><thead><tr><th>Report</th><th>Timestamp</th></tr></thead><tbody>'
-            for f in $(ls -1 reports/report_*.html | sort -r); do
+            echo '<table><thead><tr><th>Timestamp</th><th>Python</th><th>Suite</th><th>Report</th></tr></thead><tbody>'
+            for f in $(ls -1 reports/*.html | sort -r); do
               name=$(basename "$f")
-              ts=$(echo "$name" | sed -E 's/report_([0-9]{8})_([0-9]{6})\.html/\1 \2/')
-              echo "<tr><td><a href=\"reports/$name\">$name</a></td><td>$ts</td></tr>"
+              ts=$(echo "$name" | sed -E 's/^([0-9]{8})_([0-9]{6})_py.*/\1 \2/')
+              py=$(echo "$name" | sed -E 's/^[0-9]{8}_[0-9]{6}_py([0-9.]+)_(unit|e2e)\.html$/\1/')
+              suite=$(echo "$name" | sed -E 's/^[0-9]{8}_[0-9]{6}_py([0-9.]+)_(unit|e2e)\.html$/\2/')
+              echo "<tr><td>$ts</td><td>$py</td><td>$suite</td><td><a href=\"reports/$name\">$name</a></td></tr>"
             done
             echo '</tbody></table></body></html>'
           } > index.html
@@ -173,8 +178,8 @@ jobs:
           {
             echo "## Test report"
             echo ""
-            echo "- Source report: \`reports/dev/${{ steps.assemble.outputs.source_file }}\`"
-            echo "- Published to: \`gh-pages\` branch → \`reports/${{ steps.assemble.outputs.source_file }}\`"
+            echo "- New reports added this run: ${{ steps.assemble.outputs.new_count }} (one unit + one e2e report per Python version)"
+            echo "- Published to: \`gh-pages\` branch → \`reports/\`"
             echo "- Reports kept: ${{ steps.assemble.outputs.total_reports }} (pruned ${{ steps.assemble.outputs.pruned }} older report(s), retention limit $REPORTS_TO_KEEP)"
             echo "- Dashboard: https://$REPORTS_DOMAIN/"
           } >> "$GITHUB_STEP_SUMMARY"
