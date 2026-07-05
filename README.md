@@ -150,6 +150,39 @@ redeclaring `api_client` — see [docs/QUICKSTART.md](docs/QUICKSTART.md#7-overr
 
 ---
 
+## Project structure
+
+```
+pytest-api-core-framework/
+├── src/pytest_api_core/
+│   ├── plugin.py               # pytest11 entry point — CLI/ini options, .env loading, reporter registration
+│   ├── assertions/
+│   │   ├── response_assertions.py   # assert_that(response) fluent chain
+│   │   └── assert_utils.py          # standalone helpers: assert_equal, assert_contains, ...
+│   ├── auth/
+│   │   └── auth_handlers.py    # BearerAuth, BasicAuth, APIKeyAuth, OAuth2ClientCredentials
+│   ├── client/
+│   │   ├── api_client.py       # APIClient (requests.Session wrapper, retry, __API_CALL__ logging)
+│   │   └── api_response.py     # APIResponse wrapper (adds elapsed_ms)
+│   ├── config/
+│   │   ├── base_settings.py    # BaseSettings — subclass to define environments
+│   │   ├── config_manager.py   # ConfigManager — merges env vars / CLI / settings_module / defaults
+│   │   └── env_loader.py       # .env file loading
+│   ├── fixtures/
+│   │   └── api_fixtures.py     # api_config, auth_provider, api_client, api_*_auth fixtures
+│   └── reporters/
+│       ├── html_reporter.py    # parses __API_CALL__/__API_ASSERT__ sentinels, renders HTML report
+│       └── templates/report.html
+├── tests/
+│   ├── unit/test_unit.py       # mocked HTTP tests (responses library)
+│   └── e2e/test_e2e_jsonplaceholder.py  # live tests against jsonplaceholder.typicode.com
+├── docs/QUICKSTART.md          # full setup guide (settings.py, conftest.py, CI)
+├── config/settings.py          # example ENVIRONMENTS settings module
+└── pyproject.toml
+```
+
+---
+
 ## License
 
 See [LICENSE](LICENSE).
