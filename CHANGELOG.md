@@ -5,6 +5,19 @@ All notable changes to pytest-api-core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-07-05
+
+### Added
+- MIT license classifier in `pyproject.toml` so PyPI displays the license correctly
+- Python 3.13 and 3.14 classifiers
+- `test-suite.yml` GitHub Actions workflow: runs unit + e2e tests on every push/PR
+  to any branch, on Python 3.9-3.14, plus manual dispatch with a per-version option
+- Test HTML report is now published to GitHub Pages after every workflow run
+
+### Removed
+- `deploy/` directory (self-hosted private PyPI index setup) — no longer used
+  now that releases publish to public PyPI only
+
 ## [1.0.3] - 2026-07-02
 
 ### Added
@@ -81,6 +94,7 @@ git; this tag corresponds to the same commit and content described below.
 - Filterable test results by status
 - Collapsible test details with logs, stdout, stderr, and failures
 
+[1.0.4]: https://github.com/sksingh329/pytest-api-core-framework/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/sksingh329/pytest-api-core-framework/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/sksingh329/pytest-api-core-framework/releases/tag/v1.0.2
 [1.0.1]: https://github.com/sksingh329/pytest-api-core-framework/compare/v1.0.0...v1.0.2

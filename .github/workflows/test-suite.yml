@@ -1,7 +1,7 @@
 # .github/workflows/ci.yml
 # Runs unit + e2e tests on every push and pull request, on all branches,
 # across all supported Python versions. Can also be triggered manually.
-# On the develop branch, also publishes the HTML test report to GitHub Pages.
+# Every run also publishes its HTML test report to GitHub Pages (last run wins).
 #
 # Usage:
 #   Automatic: fires on every commit push and on PR open/sync/reopen/merge, any branch.
@@ -10,7 +10,7 @@
 # One-time setup required for the report to publish:
 #   Settings → Pages → Build and deployment → Source → "GitHub Actions"
 
-name: CI
+name: Test Suite (Unit + E2E, Multi-Python)
 
 on:
   push:
@@ -78,7 +78,7 @@ jobs:
   publish-report:
     name: Publish report to GitHub Pages
     needs: test
-    if: always() && needs.test.result == 'success' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/develop'))
+    if: always() && needs.test.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read

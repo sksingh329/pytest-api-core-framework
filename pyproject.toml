@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytest-api-core"
-version = "1.0.3"
+version = "1.0.4"
 description = "Pytest API automation framework with custom HTML reporting, reusable fixtures, and fluent assertions"
 readme = "README.md"
 license = { file = "LICENSE" }
