@@ -1,0 +1,185 @@
+# .github/workflows/test-suite.yml
+# Runs unit + e2e tests on every push and pull request, on all branches,
+# across all supported Python versions. Can also be triggered manually.
+#
+# Usage:
+#   Automatic: fires on every commit push and on PR open/sync/reopen/merge, any branch.
+#   Manual:    Actions → CI → Run workflow (pick a branch, optionally narrow the Python matrix).
+#
+# Reports accumulate on the gh-pages branch under reports/, with an index.html
+# dashboard listing them newest-first; only the most recent 200 reports are kept.
+#
+# One-time setup required for the report to publish:
+#   Settings → Pages → Build and deployment → Source → "Deploy from a branch"
+#   Branch → gh-pages / (root) → Save
+#   (the gh-pages branch is created automatically by the first successful run)
+#   Settings → Pages → Custom domain → githubreports.apicore.subodhsingh.in
+#   (requires a CNAME DNS record for that hostname pointing at <owner>.github.io)
+
+name: Test Suite (Unit + E2E, Multi-Python)
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+  workflow_dispatch:
+    inputs:
+      python-version:
+        description: 'Python version to test (leave as "all" for the full matrix)'
+        required: false
+        type: choice
+        default: "all"
+        options:
+          - "all"
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+
+env:
+  REPORTS_TO_KEEP: 200
+  REPORTS_DOMAIN: "githubreports.apicore.subodhsingh.in"
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ (github.event_name == 'workflow_dispatch' && inputs.python-version != 'all') && fromJSON(format('["{0}"]', inputs.python-version)) || fromJSON('["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev,dotenv]"
+
+      - name: Run unit tests
+        run: >
+          pytest tests/unit/ -v --tb=short --no-header
+          --api-html-report=reports/dev/{timestamp}_py${{ matrix.python-version }}_unit.html
+
+      - name: Run e2e tests
+        run: >
+          pytest tests/e2e/ -v --tb=short --no-header --api-env=dev
+          --api-html-report=reports/dev/{timestamp}_py${{ matrix.python-version }}_e2e.html
+
+      - name: Upload HTML report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-report-${{ matrix.python-version }}
+          path: reports/dev/*.html
+          retention-days: 30
+
+  publish-report:
+    name: Publish report to GitHub Pages
+    needs: test
+    if: always() && needs.test.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: "pages"
+      cancel-in-progress: false
+    steps:
+      - name: Download new report artifacts (all Python versions)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: html-report-*
+          path: new-report
+          merge-multiple: true
+
+      - name: Checkout existing gh-pages reports
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Assemble dashboard site
+        id: assemble
+        run: |
+          set -euo pipefail
+          mkdir -p site/reports
+          if [ -d gh-pages/reports ]; then
+            cp gh-pages/reports/*.html site/reports/ 2>/dev/null || true
+          fi
+
+          new_count=$(ls -1 new-report/*.html | wc -l)
+          cp new-report/*.html site/reports/
+          echo "new_count=$new_count" >> "$GITHUB_OUTPUT"
+
+          cd site/reports
+          total_before=$(ls -1 *.html | wc -l)
+          pruned=0
+          if [ "$total_before" -gt "$REPORTS_TO_KEEP" ]; then
+            to_delete=$(ls -1 *.html | sort | head -n -"$REPORTS_TO_KEEP")
+            pruned=$(echo "$to_delete" | wc -l)
+            echo "$to_delete" | xargs rm --
+          fi
+          cd ../..
+          echo "pruned=$pruned" >> "$GITHUB_OUTPUT"
+          echo "total_reports=$(ls -1 site/reports/*.html | wc -l)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate dashboard index.html
+        run: |
+          set -euo pipefail
+          cd site
+          {
+            echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+            echo '<title>pytest-api-core Test Reports</title>'
+            echo '<style>
+              body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; background:#0d1117; color:#e6edf3; }
+              h1 { font-size: 1.4rem; }
+              table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+              th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #30363d; }
+              th { color: #8b949e; font-weight: 600; }
+              a { color: #58a6ff; text-decoration: none; }
+              a:hover { text-decoration: underline; }
+              .meta { color: #8b949e; font-size: 0.85rem; }
+            </style></head><body>'
+            echo "<h1>pytest-api-core Test Reports</h1>"
+            echo "<p class=\"meta\">Newest first · showing up to $REPORTS_TO_KEEP most recent runs</p>"
+            echo '<table><thead><tr><th>Timestamp</th><th>Python</th><th>Suite</th><th>Report</th></tr></thead><tbody>'
+            for f in $(ls -1 reports/*.html | sort -r); do
+              name=$(basename "$f")
+              ts=$(echo "$name" | sed -E 's/^([0-9]{8})_([0-9]{6})_py.*/\1 \2/')
+              py=$(echo "$name" | sed -E 's/^[0-9]{8}_[0-9]{6}_py([0-9.]+)_(unit|e2e)\.html$/\1/')
+              suite=$(echo "$name" | sed -E 's/^[0-9]{8}_[0-9]{6}_py([0-9.]+)_(unit|e2e)\.html$/\2/')
+              echo "<tr><td>$ts</td><td>$py</td><td>$suite</td><td><a href=\"reports/$name\">$name</a></td></tr>"
+            done
+            echo '</tbody></table></body></html>'
+          } > index.html
+          echo "$REPORTS_DOMAIN" > CNAME
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: gh-pages
+
+      - name: Log report path in job summary
+        run: |
+          {
+            echo "## Test report"
+            echo ""
+            echo "- New reports added this run: ${{ steps.assemble.outputs.new_count }} (one unit + one e2e report per Python version)"
+            echo "- Published to: \`gh-pages\` branch → \`reports/\`"
+            echo "- Reports kept: ${{ steps.assemble.outputs.total_reports }} (pruned ${{ steps.assemble.outputs.pruned }} older report(s), retention limit $REPORTS_TO_KEEP)"
+            echo "- Dashboard: https://$REPORTS_DOMAIN/"
+          } >> "$GITHUB_STEP_SUMMARY"
