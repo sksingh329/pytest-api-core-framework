@@ -5,6 +5,16 @@ All notable changes to pytest-api-core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-07-05
+
+### Fixed
+- README's `pip install` version references were left at 1.0.3 in the 1.0.4
+  release (the fix landed in git after 1.0.4 was already published to PyPI,
+  which is immutable per-version) — corrected README is now baked into this
+  release
+- `publish-public.yml`'s test matrix now covers Python 3.9-3.14, matching
+  `test-suite.yml` (it was previously stuck at 3.9-3.12)
+
 ## [1.0.4] - 2026-07-05
 
 ### Added
@@ -94,6 +104,7 @@ git; this tag corresponds to the same commit and content described below.
 - Filterable test results by status
 - Collapsible test details with logs, stdout, stderr, and failures
 
+[1.0.5]: https://github.com/sksingh329/pytest-api-core-framework/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/sksingh329/pytest-api-core-framework/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/sksingh329/pytest-api-core-framework/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/sksingh329/pytest-api-core-framework/releases/tag/v1.0.2
