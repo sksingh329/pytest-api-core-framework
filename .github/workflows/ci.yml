@@ -1,0 +1,113 @@
+# .github/workflows/ci.yml
+# Runs unit + e2e tests on every push and pull request, on all branches,
+# across all supported Python versions. Can also be triggered manually.
+# On the develop branch, also publishes the HTML test report to GitHub Pages.
+#
+# Usage:
+#   Automatic: fires on every commit push and on PR open/sync/reopen/merge, any branch.
+#   Manual:    Actions → CI → Run workflow (pick a branch, optionally narrow the Python matrix).
+#
+# One-time setup required for the report to publish:
+#   Settings → Pages → Build and deployment → Source → "GitHub Actions"
+
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+  workflow_dispatch:
+    inputs:
+      python-version:
+        description: 'Python version to test (leave as "all" for the full matrix)'
+        required: false
+        type: choice
+        default: "all"
+        options:
+          - "all"
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+
+# Report is published from the Python 3.12 run; used to gate the artifact upload step below.
+env:
+  REPORT_PYTHON_VERSION: "3.12"
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ (github.event_name == 'workflow_dispatch' && inputs.python-version != 'all') && fromJSON(format('["{0}"]', inputs.python-version)) || fromJSON('["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev,dotenv]"
+
+      - name: Run unit tests
+        run: pytest tests/unit/ -v --tb=short --no-header
+
+      - name: Run e2e tests
+        run: pytest tests/e2e/ -v --tb=short --no-header --api-env=dev
+
+      - name: Upload HTML report artifact
+        if: always() && matrix.python-version == env.REPORT_PYTHON_VERSION
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-report
+          path: reports/dev/*.html
+          retention-days: 30
+
+  publish-report:
+    name: Publish report to GitHub Pages
+    needs: test
+    if: always() && needs.test.result == 'success' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/develop'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download report artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: html-report
+          path: site
+
+      - name: Prepare Pages site (latest report as index.html)
+        run: |
+          cd site
+          latest=$(ls -t report_*.html | head -n1)
+          cp "$latest" index.html
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
