@@ -178,7 +178,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
 <header>
   <div>
     <h1>pytest-api-core Framework Tests
-      <small>Generated 2026-07-05 08:26:53 &nbsp;|&nbsp; Duration: 0.24s</small>
+      <small>Generated 2026-07-05 08:29:05 &nbsp;|&nbsp; Duration: 0.65s</small>
     </h1>
   </div>
   <div class="header-actions">
@@ -288,7 +288,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <span class="marker">e2e_jsonplaceholder</span>
           
         </td>
-        <td class="duration">0.047s</td>
+        <td class="duration">0.063s</td>
         <td style="color:var(--text-muted);font-size:12px">
           1
         </td>
@@ -309,7 +309,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-GET">GET</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/posts/1</span>
                 <span class="status-chip status-2xx">200</span>
-                <span class="elapsed-chip">42.8 ms</span>
+                <span class="elapsed-chip">58.1 ms</span>
                 <span class="http-chevron" id="chev-call-0-0">▶</span>
               </div>
               <div class="http-body" id="call-0-0">
@@ -345,7 +345,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -365,11 +365,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=T5%2FjfP6vzKyFkSZRvHeYIvi9ARPjygOdHgdruKvIRPk%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1778158983&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=1oflozU7FpJsnsPoK6Bz4aIYCNZF7%2FE%2BO4r%2BWz3khrQ%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1782971855&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=T5%2FjfP6vzKyFkSZRvHeYIvi9ARPjygOdHgdruKvIRPk%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1778158983&#34;</td></tr>
-                    
-                    <tr><td>Retry-After</td><td>60</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=1oflozU7FpJsnsPoK6Bz4aIYCNZF7%2FE%2BO4r%2BWz3khrQ%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1782971855&#34;</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -383,17 +381,17 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Limit</td><td>1000</td></tr>
                     
-                    <tr><td>X-Ratelimit-Remaining</td><td>0</td></tr>
+                    <tr><td>X-Ratelimit-Remaining</td><td>999</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1778159036</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1782971916</td></tr>
                     
-                    <tr><td>Age</td><td>22449</td></tr>
+                    <tr><td>Age</td><td>9084</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>HIT</td></tr>
                     
                     <tr><td>Content-Encoding</td><td>gzip</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc20b3cc814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a164fffcac93b5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -534,13 +532,13 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log setup ---
-08:26:53 [DEBUG   ] pytest_api_core.config: Loaded config for env=&#39;dev&#39;: {&#39;base_url&#39;: &#39;https://jsonplaceholder.typicode.com&#39;, &#39;timeout&#39;: 30, &#39;verify_ssl&#39;: True, &#39;headers&#39;: {&#39;Accept&#39;: &#39;application/json&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}, &#39;api_retry_total&#39;: 3, &#39;api_retry_backoff_factor&#39;: 0.3, &#39;api_retry_methods&#39;: [&#39;GET&#39;, &#39;HEAD&#39;, &#39;OPTIONS&#39;]}
+08:29:05 [DEBUG   ] pytest_api_core.config: Loaded config for env=&#39;dev&#39;: {&#39;base_url&#39;: &#39;https://jsonplaceholder.typicode.com&#39;, &#39;timeout&#39;: 30, &#39;verify_ssl&#39;: True, &#39;headers&#39;: {&#39;Accept&#39;: &#39;application/json&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}, &#39;api_retry_total&#39;: 3, &#39;api_retry_backoff_factor&#39;: 0.3, &#39;api_retry_methods&#39;: [&#39;GET&#39;, &#39;HEAD&#39;, &#39;OPTIONS&#39;]}
 --- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/posts/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
-08:26:53 [DEBUG   ] urllib3.connectionpool: Starting new HTTPS connection (1): jsonplaceholder.typicode.com:443
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /posts/1 HTTP/1.1&#34; 200 None
-08:26:53 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/posts/1  200  (42.8 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: {
+08:29:05 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/posts/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
+08:29:05 [DEBUG   ] urllib3.connectionpool: Starting new HTTPS connection (1): jsonplaceholder.typicode.com:443
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /posts/1 HTTP/1.1&#34; 200 None
+08:29:05 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/posts/1  200  (58.1 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: {
   &#34;userId&#34;: 1,
   &#34;id&#34;: 1,
   &#34;title&#34;: &#34;sunt aut facere repellat provident occaecati excepturi optio reprehenderit&#34;,
@@ -584,7 +582,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <span class="marker">e2e_jsonplaceholder</span>
           
         </td>
-        <td class="duration">0.011s</td>
+        <td class="duration">0.012s</td>
         <td style="color:var(--text-muted);font-size:12px">
           1
         </td>
@@ -605,7 +603,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-GET">GET</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/posts</span>
                 <span class="status-chip status-2xx">200</span>
-                <span class="elapsed-chip">7.3 ms</span>
+                <span class="elapsed-chip">8.5 ms</span>
                 <span class="http-chevron" id="chev-call-1-0">▶</span>
               </div>
               <div class="http-body" id="call-1-0">
@@ -641,7 +639,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -663,9 +661,11 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=ZEIM4M2xoq2EXaYIoXRZL6WRVtQiYhdskCpxZ5UFvcw%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1783182255&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=kJNZOmA8NhZVfri8zg7pHoulL1o9nJs40S2fBcHyegQ%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1764590345&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=ZEIM4M2xoq2EXaYIoXRZL6WRVtQiYhdskCpxZ5UFvcw%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1783182255&#34;</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=kJNZOmA8NhZVfri8zg7pHoulL1o9nJs40S2fBcHyegQ%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1764590345&#34;</td></tr>
+                    
+                    <tr><td>Retry-After</td><td>60</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -679,15 +679,15 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Limit</td><td>1000</td></tr>
                     
-                    <tr><td>X-Ratelimit-Remaining</td><td>999</td></tr>
+                    <tr><td>X-Ratelimit-Remaining</td><td>0</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1783182280</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1764590369</td></tr>
                     
-                    <tr><td>Age</td><td>156</td></tr>
+                    <tr><td>Age</td><td>5803</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>HIT</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc21b5ec814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a164fffcbcb0b5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -815,10 +815,10 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/posts  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /posts HTTP/1.1&#34; 200 None
-08:26:53 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/posts  200  (7.3 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: [
+08:29:05 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/posts  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /posts HTTP/1.1&#34; 200 None
+08:29:05 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/posts  200  (8.5 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: [
   {
     &#34;userId&#34;: 1,
     &#34;id&#34;: 1,
@@ -1479,7 +1479,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-GET">GET</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/posts/1/comments</span>
                 <span class="status-chip status-2xx">200</span>
-                <span class="elapsed-chip">9.0 ms</span>
+                <span class="elapsed-chip">9.5 ms</span>
                 <span class="http-chevron" id="chev-call-2-0">▶</span>
               </div>
               <div class="http-body" id="call-2-0">
@@ -1515,7 +1515,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -1537,9 +1537,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=Ic7azXe6074jwd5LNRX0dMtfqyp8vnSyJlt1rY9UB%2Bk%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1782691392&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=90bX08vmxnKSvpUnzPXLG%2BxXWr0%2B4NiXSA06wJY%2FzAs%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1781339106&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=Ic7azXe6074jwd5LNRX0dMtfqyp8vnSyJlt1rY9UB%2Bk%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1782691392&#34;</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=90bX08vmxnKSvpUnzPXLG%2BxXWr0%2B4NiXSA06wJY%2FzAs%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1781339106&#34;</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -1553,17 +1553,17 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Limit</td><td>1000</td></tr>
                     
-                    <tr><td>X-Ratelimit-Remaining</td><td>966</td></tr>
+                    <tr><td>X-Ratelimit-Remaining</td><td>995</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1782691409</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1781339157</td></tr>
                     
-                    <tr><td>Age</td><td>681</td></tr>
+                    <tr><td>Age</td><td>17938</td></tr>
                     
                     <tr><td>Accept-Ranges</td><td>bytes</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>HIT</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc22b7dc814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a164fffccccfb5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -1664,7 +1664,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     
                     
-                      max=5000ms &nbsp; actual=<span class="exp">9.0ms</span>
+                      max=5000ms &nbsp; actual=<span class="exp">9.5ms</span>
                     
                   </span>
                   
@@ -1680,10 +1680,10 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/posts/1/comments  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /posts/1/comments HTTP/1.1&#34; 200 657
-08:26:53 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/posts/1/comments  200  (9.0 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: [
+08:29:05 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/posts/1/comments  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /posts/1/comments HTTP/1.1&#34; 200 657
+08:29:05 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/posts/1/comments  200  (9.5 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: [
   {
     &#34;postId&#34;: 1,
     &#34;id&#34;: 1,
@@ -1758,7 +1758,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <span class="marker">e2e_jsonplaceholder</span>
           
         </td>
-        <td class="duration">0.014s</td>
+        <td class="duration">0.079s</td>
         <td style="color:var(--text-muted);font-size:12px">
           1
         </td>
@@ -1779,7 +1779,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-POST">POST</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/posts</span>
                 <span class="status-chip status-2xx">201</span>
-                <span class="elapsed-chip">11.8 ms</span>
+                <span class="elapsed-chip">76.6 ms</span>
                 <span class="http-chevron" id="chev-call-3-0">▶</span>
               </div>
               <div class="http-body" id="call-3-0">
@@ -1819,7 +1819,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -1843,9 +1843,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=x%2BktDCU%2FqFzMTlj8YRymBuEx7VNpkHBBEhqTgGl7V4c%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1783240013&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=DBnnuvBcZbn4jhJq92PTutGTvY5vgEMHlqAAfQ995fI%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1783240145&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=x%2BktDCU%2FqFzMTlj8YRymBuEx7VNpkHBBEhqTgGl7V4c%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1783240013&#34;</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=DBnnuvBcZbn4jhJq92PTutGTvY5vgEMHlqAAfQ995fI%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1783240145&#34;</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -1861,11 +1861,11 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Remaining</td><td>999</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1783240053</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1783240173</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>DYNAMIC</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc23b9dc814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a164fffcecf8b5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -1992,10 +1992,10 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → POST https://jsonplaceholder.typicode.com/posts  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body={&#39;title&#39;: &#39;pytest-api-core test&#39;, &#39;body&#39;: &#39;created by framework&#39;, &#39;userId&#39;: 99}
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;POST /posts HTTP/1.1&#34; 201 100
-08:26:53 [INFO    ] pytest_api_core.client: ← POST https://jsonplaceholder.typicode.com/posts  201  (11.8 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: {
+08:29:05 [DEBUG   ] pytest_api_core.client: → POST https://jsonplaceholder.typicode.com/posts  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body={&#39;title&#39;: &#39;pytest-api-core test&#39;, &#39;body&#39;: &#39;created by framework&#39;, &#39;userId&#39;: 99}
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;POST /posts HTTP/1.1&#34; 201 100
+08:29:05 [INFO    ] pytest_api_core.client: ← POST https://jsonplaceholder.typicode.com/posts  201  (76.6 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: {
   &#34;title&#34;: &#34;pytest-api-core test&#34;,
   &#34;body&#34;: &#34;created by framework&#34;,
   &#34;userId&#34;: 99,
@@ -2039,7 +2039,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <span class="marker">e2e_jsonplaceholder</span>
           
         </td>
-        <td class="duration">0.024s</td>
+        <td class="duration">0.236s</td>
         <td style="color:var(--text-muted);font-size:12px">
           1
         </td>
@@ -2060,7 +2060,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-PUT">PUT</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/posts/1</span>
                 <span class="status-chip status-2xx">200</span>
-                <span class="elapsed-chip">22.4 ms</span>
+                <span class="elapsed-chip">234.7 ms</span>
                 <span class="http-chevron" id="chev-call-4-0">▶</span>
               </div>
               <div class="http-body" id="call-4-0">
@@ -2101,7 +2101,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -2121,9 +2121,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=x%2BktDCU%2FqFzMTlj8YRymBuEx7VNpkHBBEhqTgGl7V4c%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1783240013&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=DBnnuvBcZbn4jhJq92PTutGTvY5vgEMHlqAAfQ995fI%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1783240145&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=x%2BktDCU%2FqFzMTlj8YRymBuEx7VNpkHBBEhqTgGl7V4c%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1783240013&#34;</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=DBnnuvBcZbn4jhJq92PTutGTvY5vgEMHlqAAfQ995fI%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1783240145&#34;</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -2139,13 +2139,13 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Remaining</td><td>998</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1783240053</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1783240173</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>DYNAMIC</td></tr>
                     
                     <tr><td>Content-Encoding</td><td>gzip</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc25bc4c814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a164fffd5de7b5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -2217,10 +2217,10 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → PUT https://jsonplaceholder.typicode.com/posts/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body={&#39;id&#39;: 1, &#39;title&#39;: &#39;updated title&#39;, &#39;body&#39;: &#39;updated body&#39;, &#39;userId&#39;: 1}
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;PUT /posts/1 HTTP/1.1&#34; 200 None
-08:26:53 [INFO    ] pytest_api_core.client: ← PUT https://jsonplaceholder.typicode.com/posts/1  200  (22.4 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: {
+08:29:05 [DEBUG   ] pytest_api_core.client: → PUT https://jsonplaceholder.typicode.com/posts/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body={&#39;id&#39;: 1, &#39;title&#39;: &#39;updated title&#39;, &#39;body&#39;: &#39;updated body&#39;, &#39;userId&#39;: 1}
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;PUT /posts/1 HTTP/1.1&#34; 200 None
+08:29:05 [INFO    ] pytest_api_core.client: ← PUT https://jsonplaceholder.typicode.com/posts/1  200  (234.7 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: {
   &#34;id&#34;: 1,
   &#34;title&#34;: &#34;updated title&#34;,
   &#34;body&#34;: &#34;updated body&#34;,
@@ -2264,7 +2264,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <span class="marker">e2e_jsonplaceholder</span>
           
         </td>
-        <td class="duration">0.015s</td>
+        <td class="duration">0.079s</td>
         <td style="color:var(--text-muted);font-size:12px">
           1
         </td>
@@ -2285,7 +2285,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-PATCH">PATCH</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/posts/1</span>
                 <span class="status-chip status-2xx">200</span>
-                <span class="elapsed-chip">13.1 ms</span>
+                <span class="elapsed-chip">76.9 ms</span>
                 <span class="http-chevron" id="chev-call-5-0">▶</span>
               </div>
               <div class="http-body" id="call-5-0">
@@ -2323,7 +2323,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -2343,9 +2343,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=x%2BktDCU%2FqFzMTlj8YRymBuEx7VNpkHBBEhqTgGl7V4c%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1783240013&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=DBnnuvBcZbn4jhJq92PTutGTvY5vgEMHlqAAfQ995fI%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1783240145&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=x%2BktDCU%2FqFzMTlj8YRymBuEx7VNpkHBBEhqTgGl7V4c%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1783240013&#34;</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=DBnnuvBcZbn4jhJq92PTutGTvY5vgEMHlqAAfQ995fI%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1783240145&#34;</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -2361,13 +2361,13 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Remaining</td><td>997</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1783240053</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1783240173</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>DYNAMIC</td></tr>
                     
                     <tr><td>Content-Encoding</td><td>gzip</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc27c07c814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a164fffed883b5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -2439,10 +2439,10 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → PATCH https://jsonplaceholder.typicode.com/posts/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body={&#39;title&#39;: &#39;patched title&#39;}
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;PATCH /posts/1 HTTP/1.1&#34; 200 None
-08:26:53 [INFO    ] pytest_api_core.client: ← PATCH https://jsonplaceholder.typicode.com/posts/1  200  (13.1 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: {
+08:29:05 [DEBUG   ] pytest_api_core.client: → PATCH https://jsonplaceholder.typicode.com/posts/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body={&#39;title&#39;: &#39;patched title&#39;}
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;PATCH /posts/1 HTTP/1.1&#34; 200 None
+08:29:05 [INFO    ] pytest_api_core.client: ← PATCH https://jsonplaceholder.typicode.com/posts/1  200  (76.9 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: {
   &#34;userId&#34;: 1,
   &#34;id&#34;: 1,
   &#34;title&#34;: &#34;patched title&#34;,
@@ -2486,7 +2486,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <span class="marker">e2e_jsonplaceholder</span>
           
         </td>
-        <td class="duration">0.014s</td>
+        <td class="duration">0.079s</td>
         <td style="color:var(--text-muted);font-size:12px">
           1
         </td>
@@ -2507,7 +2507,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-DELETE">DELETE</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/posts/1</span>
                 <span class="status-chip status-2xx">200</span>
-                <span class="elapsed-chip">12.2 ms</span>
+                <span class="elapsed-chip">77.9 ms</span>
                 <span class="http-chevron" id="chev-call-6-0">▶</span>
               </div>
               <div class="http-body" id="call-6-0">
@@ -2543,7 +2543,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -2563,9 +2563,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=x%2BktDCU%2FqFzMTlj8YRymBuEx7VNpkHBBEhqTgGl7V4c%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1783240013&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=DBnnuvBcZbn4jhJq92PTutGTvY5vgEMHlqAAfQ995fI%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1783240145&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=x%2BktDCU%2FqFzMTlj8YRymBuEx7VNpkHBBEhqTgGl7V4c%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1783240013&#34;</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=DBnnuvBcZbn4jhJq92PTutGTvY5vgEMHlqAAfQ995fI%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1783240145&#34;</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -2581,11 +2581,11 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Remaining</td><td>996</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1783240053</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1783240173</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>DYNAMIC</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc29c38c814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a164ffff5957b5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -2632,10 +2632,10 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → DELETE https://jsonplaceholder.typicode.com/posts/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;DELETE /posts/1 HTTP/1.1&#34; 200 2
-08:26:53 [INFO    ] pytest_api_core.client: ← DELETE https://jsonplaceholder.typicode.com/posts/1  200  (12.2 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: {}
+08:29:05 [DEBUG   ] pytest_api_core.client: → DELETE https://jsonplaceholder.typicode.com/posts/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;DELETE /posts/1 HTTP/1.1&#34; 200 2
+08:29:05 [INFO    ] pytest_api_core.client: ← DELETE https://jsonplaceholder.typicode.com/posts/1  200  (77.9 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: {}
 </pre>
             </div>
             
@@ -2674,7 +2674,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <span class="marker">e2e_jsonplaceholder</span>
           
         </td>
-        <td class="duration">0.011s</td>
+        <td class="duration">0.010s</td>
         <td style="color:var(--text-muted);font-size:12px">
           1
         </td>
@@ -2695,7 +2695,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-GET">GET</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/posts/99999</span>
                 <span class="status-chip status-4xx">404</span>
-                <span class="elapsed-chip">9.3 ms</span>
+                <span class="elapsed-chip">8.1 ms</span>
                 <span class="http-chevron" id="chev-call-7-0">▶</span>
               </div>
               <div class="http-body" id="call-7-0">
@@ -2731,7 +2731,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -2751,9 +2751,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=Q8ii5hmirEaR37DDekhlDH0JojmnVW08GvU46XFDDDE%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1783233485&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=S23ZnVynISPBLtzfVVwpdgzmsF%2FxxwIzIjrGRWRcKN4%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1783216378&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=Q8ii5hmirEaR37DDekhlDH0JojmnVW08GvU46XFDDDE%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1783233485&#34;</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=S23ZnVynISPBLtzfVVwpdgzmsF%2FxxwIzIjrGRWRcKN4%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1783216378&#34;</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -2767,15 +2767,15 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Limit</td><td>1000</td></tr>
                     
-                    <tr><td>X-Ratelimit-Remaining</td><td>999</td></tr>
+                    <tr><td>X-Ratelimit-Remaining</td><td>998</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1783233513</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1783216413</td></tr>
                     
-                    <tr><td>Age</td><td>6528</td></tr>
+                    <tr><td>Age</td><td>23767</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>HIT</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc2ac58c814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a164ffffda2eb5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -2822,10 +2822,10 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/posts/99999  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /posts/99999 HTTP/1.1&#34; 404 2
-08:26:53 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/posts/99999  404  (9.3 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: {}
+08:29:05 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/posts/99999  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /posts/99999 HTTP/1.1&#34; 404 2
+08:29:05 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/posts/99999  404  (8.1 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: {}
 </pre>
             </div>
             
@@ -2864,7 +2864,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <span class="marker">e2e_jsonplaceholder</span>
           
         </td>
-        <td class="duration">0.010s</td>
+        <td class="duration">0.012s</td>
         <td style="color:var(--text-muted);font-size:12px">
           1
         </td>
@@ -2885,7 +2885,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-GET">GET</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/users</span>
                 <span class="status-chip status-2xx">200</span>
-                <span class="elapsed-chip">7.8 ms</span>
+                <span class="elapsed-chip">9.4 ms</span>
                 <span class="http-chevron" id="chev-call-8-0">▶</span>
               </div>
               <div class="http-body" id="call-8-0">
@@ -2921,7 +2921,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -2943,9 +2943,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=SnfODJrwAe19R8Y86bXKts4iEwWCz%2BlDtaUQgcuHeXE%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1782732743&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=J11Fc033hJam7OMLxszJozY4jYD6rvPE%2FrtSblGzs%2Bg%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1780835920&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=SnfODJrwAe19R8Y86bXKts4iEwWCz%2BlDtaUQgcuHeXE%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1782732743&#34;</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=J11Fc033hJam7OMLxszJozY4jYD6rvPE%2FrtSblGzs%2Bg%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1780835920&#34;</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -2959,17 +2959,17 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Limit</td><td>1000</td></tr>
                     
-                    <tr><td>X-Ratelimit-Remaining</td><td>999</td></tr>
+                    <tr><td>X-Ratelimit-Remaining</td><td>998</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1782732750</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1780835956</td></tr>
                     
-                    <tr><td>Age</td><td>17665</td></tr>
+                    <tr><td>Age</td><td>19458</td></tr>
                     
                     <tr><td>Accept-Ranges</td><td>bytes</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>HIT</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc2bc7fc814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a164ffffea44b5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -3133,10 +3133,10 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/users  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /users HTTP/1.1&#34; 200 1847
-08:26:53 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/users  200  (7.8 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: [
+08:29:05 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/users  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /users HTTP/1.1&#34; 200 1847
+08:29:05 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/users  200  (9.4 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: [
   {
     &#34;id&#34;: 1,
     &#34;name&#34;: &#34;Leanne Graham&#34;,
@@ -3406,7 +3406,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <span class="marker">e2e_jsonplaceholder</span>
           
         </td>
-        <td class="duration">0.063s</td>
+        <td class="duration">0.055s</td>
         <td style="color:var(--text-muted);font-size:12px">
           1
         </td>
@@ -3427,7 +3427,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-GET">GET</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/users/1</span>
                 <span class="status-chip status-2xx">200</span>
-                <span class="elapsed-chip">8.0 ms</span>
+                <span class="elapsed-chip">8.6 ms</span>
                 <span class="http-chevron" id="chev-call-9-0">▶</span>
               </div>
               <div class="http-body" id="call-9-0">
@@ -3463,7 +3463,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -3483,9 +3483,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=iSturgwsJshOwEkYm7mqL9Z8DDxhITgtJX%2Fjbh6R6lQ%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1781933832&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=nWAIh5oxGgCH05S3UitL9Sq8TzIWJiYu2A1RcSVKJ5U%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1781810034&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=iSturgwsJshOwEkYm7mqL9Z8DDxhITgtJX%2Fjbh6R6lQ%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1781933832&#34;</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=nWAIh5oxGgCH05S3UitL9Sq8TzIWJiYu2A1RcSVKJ5U%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1781810034&#34;</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -3499,17 +3499,17 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Limit</td><td>1000</td></tr>
                     
-                    <tr><td>X-Ratelimit-Remaining</td><td>999</td></tr>
+                    <tr><td>X-Ratelimit-Remaining</td><td>800</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1781933833</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1781810051</td></tr>
                     
-                    <tr><td>Age</td><td>10143</td></tr>
+                    <tr><td>Age</td><td>18594</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>HIT</td></tr>
                     
                     <tr><td>Content-Encoding</td><td>gzip</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc2cc9ec814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a164fffffa67b5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -3593,10 +3593,10 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/users/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /users/1 HTTP/1.1&#34; 200 None
-08:26:53 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/users/1  200  (8.0 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: {
+08:29:05 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/users/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /users/1 HTTP/1.1&#34; 200 None
+08:29:05 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/users/1  200  (8.6 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: {
   &#34;id&#34;: 1,
   &#34;name&#34;: &#34;Leanne Graham&#34;,
   &#34;username&#34;: &#34;Bret&#34;,
@@ -3657,7 +3657,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <span class="marker">e2e_jsonplaceholder</span>
           
         </td>
-        <td class="duration">0.009s</td>
+        <td class="duration">0.010s</td>
         <td style="color:var(--text-muted);font-size:12px">
           1
         </td>
@@ -3678,7 +3678,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-GET">GET</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/users/1</span>
                 <span class="status-chip status-2xx">200</span>
-                <span class="elapsed-chip">7.2 ms</span>
+                <span class="elapsed-chip">8.3 ms</span>
                 <span class="http-chevron" id="chev-call-10-0">▶</span>
               </div>
               <div class="http-body" id="call-10-0">
@@ -3714,7 +3714,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -3734,9 +3734,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=iSturgwsJshOwEkYm7mqL9Z8DDxhITgtJX%2Fjbh6R6lQ%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1781933832&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=nWAIh5oxGgCH05S3UitL9Sq8TzIWJiYu2A1RcSVKJ5U%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1781810034&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=iSturgwsJshOwEkYm7mqL9Z8DDxhITgtJX%2Fjbh6R6lQ%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1781933832&#34;</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=nWAIh5oxGgCH05S3UitL9Sq8TzIWJiYu2A1RcSVKJ5U%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1781810034&#34;</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -3750,17 +3750,17 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Limit</td><td>1000</td></tr>
                     
-                    <tr><td>X-Ratelimit-Remaining</td><td>999</td></tr>
+                    <tr><td>X-Ratelimit-Remaining</td><td>800</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1781933833</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1781810051</td></tr>
                     
-                    <tr><td>Age</td><td>10143</td></tr>
+                    <tr><td>Age</td><td>18594</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>HIT</td></tr>
                     
                     <tr><td>Content-Encoding</td><td>gzip</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc33d93c814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a16500005b0cb5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -3892,10 +3892,10 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/users/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /users/1 HTTP/1.1&#34; 200 None
-08:26:53 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/users/1  200  (7.2 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: {
+08:29:05 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/users/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /users/1 HTTP/1.1&#34; 200 None
+08:29:05 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/users/1  200  (8.3 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: {
   &#34;id&#34;: 1,
   &#34;name&#34;: &#34;Leanne Graham&#34;,
   &#34;username&#34;: &#34;Bret&#34;,
@@ -3979,7 +3979,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <span class="method-badge method-GET">GET</span>
                 <span class="http-url">https://jsonplaceholder.typicode.com/posts/1</span>
                 <span class="status-chip status-2xx">200</span>
-                <span class="elapsed-chip">7.8 ms</span>
+                <span class="elapsed-chip">8.7 ms</span>
                 <span class="http-chevron" id="chev-call-11-0">▶</span>
               </div>
               <div class="http-body" id="call-11-0">
@@ -4015,7 +4015,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     
-                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:26:53 GMT</td></tr>
+                    <tr><td>Date</td><td>Sun, 05 Jul 2026 08:29:05 GMT</td></tr>
                     
                     <tr><td>Content-Type</td><td>application/json; charset=utf-8</td></tr>
                     
@@ -4035,11 +4035,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>Pragma</td><td>no-cache</td></tr>
                     
-                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=T5%2FjfP6vzKyFkSZRvHeYIvi9ARPjygOdHgdruKvIRPk%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1778158983&#34;}],&#34;max_age&#34;:3600}</td></tr>
+                    <tr><td>Report-To</td><td>{&#34;group&#34;:&#34;heroku-nel&#34;,&#34;endpoints&#34;:[{&#34;url&#34;:&#34;https://nel.heroku.com/reports?s=1oflozU7FpJsnsPoK6Bz4aIYCNZF7%2FE%2BO4r%2BWz3khrQ%3D\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\u0026ts=1782971855&#34;}],&#34;max_age&#34;:3600}</td></tr>
                     
-                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=T5%2FjfP6vzKyFkSZRvHeYIvi9ARPjygOdHgdruKvIRPk%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1778158983&#34;</td></tr>
-                    
-                    <tr><td>Retry-After</td><td>60</td></tr>
+                    <tr><td>Reporting-Endpoints</td><td>heroku-nel=&#34;https://nel.heroku.com/reports?s=1oflozU7FpJsnsPoK6Bz4aIYCNZF7%2FE%2BO4r%2BWz3khrQ%3D&amp;sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&amp;ts=1782971855&#34;</td></tr>
                     
                     <tr><td>Server</td><td>cloudflare</td></tr>
                     
@@ -4053,17 +4051,17 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     
                     <tr><td>X-Ratelimit-Limit</td><td>1000</td></tr>
                     
-                    <tr><td>X-Ratelimit-Remaining</td><td>0</td></tr>
+                    <tr><td>X-Ratelimit-Remaining</td><td>999</td></tr>
                     
-                    <tr><td>X-Ratelimit-Reset</td><td>1778159036</td></tr>
+                    <tr><td>X-Ratelimit-Reset</td><td>1782971916</td></tr>
                     
-                    <tr><td>Age</td><td>22449</td></tr>
+                    <tr><td>Age</td><td>9085</td></tr>
                     
                     <tr><td>Cf-Cache-Status</td><td>HIT</td></tr>
                     
                     <tr><td>Content-Encoding</td><td>gzip</td></tr>
                     
-                    <tr><td>CF-RAY</td><td>a164fcc33dbdc814-IAD</td></tr>
+                    <tr><td>CF-RAY</td><td>a16500006b33b5f2-SJC</td></tr>
                     
                     <tr><td>alt-svc</td><td>h3=&#34;:443&#34;; ma=86400</td></tr>
                     
@@ -4115,10 +4113,10 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             <div class="detail-section">
               <div class="detail-label log-label">LOGS</div>
               <pre class="code-block log-block">--- Captured log call ---
-08:26:53 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/posts/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
-08:26:53 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /posts/1 HTTP/1.1&#34; 200 None
-08:26:53 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/posts/1  200  (7.8 ms)
-08:26:53 [DEBUG   ] pytest_api_core.client:    response body: {
+08:29:05 [DEBUG   ] pytest_api_core.client: → GET https://jsonplaceholder.typicode.com/posts/1  headers={&#39;User-Agent&#39;: &#39;python-requests/2.34.2&#39;, &#39;Accept-Encoding&#39;: &#39;gzip, deflate&#39;, &#39;Accept&#39;: &#39;application/json&#39;, &#39;Connection&#39;: &#39;keep-alive&#39;, &#39;Content-Type&#39;: &#39;application/json&#39;}  body=None
+08:29:05 [DEBUG   ] urllib3.connectionpool: https://jsonplaceholder.typicode.com:443 &#34;GET /posts/1 HTTP/1.1&#34; 200 None
+08:29:05 [INFO    ] pytest_api_core.client: ← GET https://jsonplaceholder.typicode.com/posts/1  200  (8.7 ms)
+08:29:05 [DEBUG   ] pytest_api_core.client:    response body: {
   &#34;userId&#34;: 1,
   &#34;id&#34;: 1,
   &#34;title&#34;: &#34;sunt aut facere repellat provident occaecati excepturi optio reprehenderit&#34;,
