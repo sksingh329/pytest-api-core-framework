@@ -5,7 +5,14 @@ All notable changes to pytest-api-core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2026-10-31
+## [1.0.7] - 2026-10-31
+
+### Fixed
+- `pytest_api_core.__version__` and the README's `pip install` lines reported `1.1.0` in
+  the 1.0.6 release (it was prepared as 1.1.0 but published as 1.0.6) — all version
+  references now match the published version
+
+## [1.0.6] - 2026-10-31
 
 ### Security
 - Secrets are now redacted (`***REDACTED***`) from raw logs, `__API_CALL__` /
@@ -23,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Report request headers now show the headers actually sent (incl. auth, masked)
   rather than the session's default headers
+
+### Known issues
+- The published 1.0.6 package reports `pytest_api_core.__version__ == "1.1.0"` and its
+  PyPI page README shows `pip install pytest-api-core==1.1.0` — the release was prepared
+  as 1.1.0 but published as 1.0.6. Fixed in 1.0.7.
 
 ## [1.0.5] - 2026-07-05
 

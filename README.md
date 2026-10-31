@@ -26,13 +26,13 @@
 ## Installation
 
 ```bash
-pip install pytest-api-core==1.1.0
+pip install pytest-api-core==1.0.7
 ```
 
 With `.env` file support (recommended):
 
 ```bash
-pip install "pytest-api-core[dotenv]==1.1.0"
+pip install "pytest-api-core[dotenv]==1.0.7"
 ```
 
 ---
