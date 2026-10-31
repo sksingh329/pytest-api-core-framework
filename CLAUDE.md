@@ -65,7 +65,7 @@ Consumers define environment classes by subclassing `BaseSettings` and registeri
 - Structured `__API_CALL__` debug log lines (JSON sentinels) parsed by `HTMLReporter`
 - Returns `APIResponse` objects (thin wrapper around `requests.Response` adding `elapsed_ms`)
 
-Auth tokens are **never logged** — filtered in `_request()` before emitting the sentinel.
+Auth tokens are **never logged** — all log lines, sentinels, assertion messages and report content go through `security/redaction.py` (key-based masking + registered secret values + a logging filter). Any new log/sentinel emission must redact via that module.
 
 ### Fluent Assertions (`assertions/`)
 `assert_that(response)` returns a `ResponseAssertions` chain. Key design points:

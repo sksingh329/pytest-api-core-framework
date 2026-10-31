@@ -18,6 +18,7 @@
 - **Configurable retry policy** — max attempts, backoff factor, and retryable methods, overridable per environment (see below)
 - **Environment config** — Python `settings.py` classes + `.env` file + env var overrides
 - **Custom HTML report** — self-contained file with charts, filterable table, and request/response details
+- **Secret redaction** — tokens, passwords, API keys and cookies are masked in logs, assertion messages, and the HTML report (see [Secret redaction](#secret-redaction))
 - **Auto-registered fixtures** — zero boilerplate in consuming projects
 
 ---
@@ -25,13 +26,13 @@
 ## Installation
 
 ```bash
-pip install pytest-api-core==1.0.5
+pip install pytest-api-core==1.1.0
 ```
 
 With `.env` file support (recommended):
 
 ```bash
-pip install "pytest-api-core[dotenv]==1.0.5"
+pip install "pytest-api-core[dotenv]==1.1.0"
 ```
 
 ---
@@ -117,6 +118,7 @@ something you'd want to toggle per environment).
 | `api_html_theme` | Report theme: `light` or `dark` | `dark` |
 | `api_html_title` | Report browser tab title | `API Test Report` |
 | `api_html_header` | Report page header text | `API Test Report` |
+| `api_redact_keys` | Extra header/JSON/query keys to redact (one per line) | — |
 
 ### CLI flags
 
@@ -150,6 +152,67 @@ redeclaring `api_client` — see [docs/QUICKSTART.md](docs/QUICKSTART.md#7-overr
 
 ---
 
+## Secret redaction
+
+Credentials never reach the raw logs (terminal, `log_cli`, `log_file`), assertion failure
+messages, or the HTML report — they are replaced with `***REDACTED***`. Redaction is on by
+default and works in three layers:
+
+1. **By key name** — values under any header, JSON key, query/form parameter, or `json_path`
+   segment whose name contains `token`, `secret`, `password`, `passwd`, `apikey`,
+   `authorization`, `cookie`, `credential`, or `privatekey` (case-insensitive, `-`/`_` ignored)
+   are masked. This covers `Authorization`, `X-API-Key`, `Set-Cookie`, `access_token`,
+   `client_secret`, `?api_key=…`, and so on.
+2. **By known value** — secrets the framework knows about are scrubbed wherever they appear,
+   even under an innocuous key: values passed to `BearerAuth`, `BasicAuth`, `APIKeyAuth`,
+   `OAuth2ClientCredentials` (including fetched access tokens), sensitive `default_headers`, and
+   the `API_TOKEN` / `API_PASSWORD` / `API_KEY_VALUE` env vars. `Bearer`/`Basic` credentials and
+   JWTs are always scrubbed from free text.
+3. **Final pass** — framework and urllib3 log lines, plus captured logs, stdout/stderr, and
+   tracebacks in the HTML report, are scrubbed before being written.
+
+Assertions on sensitive fields still work normally — only what is *displayed* is masked:
+
+```python
+assert_that(response).json_path("$.access_token").is_not_none()   # report shows ***REDACTED***
+assert_that(response).header_equals("X-Auth-Token", expected_token)
+```
+
+### Extending redaction
+
+```ini
+# pytest.ini — extra key names to treat as sensitive
+[pytest]
+api_redact_keys =
+    x-tenant-signature
+    otp
+```
+
+```python
+# conftest.py — register a secret obtained at runtime, or add keys programmatically
+from pytest_api_core import add_sensitive_keys, register_secret
+
+register_secret(session_token)          # scrubbed everywhere from now on
+add_sensitive_keys("x-tenant-signature")
+```
+
+Standalone helpers don't know key names, so pass `sensitive=True` to mask their values:
+
+```python
+assert_is_not_empty(token, sensitive=True)
+assert_equal(actual_secret, expected_secret, sensitive=True)
+```
+
+**Notes**
+
+- Masking is deliberately conservative: a key like `token_type` is masked too.
+- Registered secrets shorter than 4 characters are ignored, to avoid mangling unrelated output.
+- Plain `assert` statements are reported by pytest itself (assertion introspection), which the
+  framework can't intercept — prefer `assert_that(...)` / the `assert_*` helpers for secret
+  values, or `register_secret()` them so they're scrubbed from the HTML report.
+
+---
+
 ## Project structure
 
 ```
@@ -170,9 +233,11 @@ pytest-api-core-framework/
 │   │   └── env_loader.py       # .env file loading
 │   ├── fixtures/
 │   │   └── api_fixtures.py     # api_config, auth_provider, api_client, api_*_auth fixtures
-│   └── reporters/
-│       ├── html_reporter.py    # parses __API_CALL__/__API_ASSERT__ sentinels, renders HTML report
-│       └── templates/report.html
+│   ├── reporters/
+│   │   ├── html_reporter.py    # parses __API_CALL__/__API_ASSERT__ sentinels, renders HTML report
+│   │   └── templates/report.html
+│   └── security/
+│       └── redaction.py        # secret masking for logs, sentinels, assertion messages, report
 ├── tests/
 │   ├── unit/test_unit.py       # mocked HTTP tests (responses library)
 │   └── e2e/test_e2e_jsonplaceholder.py  # live tests against jsonplaceholder.typicode.com

@@ -22,6 +22,14 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from pytest_api_core.client.api_response import APIResponse
+from pytest_api_core.security.redaction import (
+    is_sensitive_key,
+    redact,
+    redact_headers,
+    redact_text,
+    redact_url,
+    register_secret,
+)
 
 log = logging.getLogger("pytest_api_core.client")
 
@@ -88,6 +96,9 @@ class APIClient:
 
         if default_headers:
             self._session.headers.update(default_headers)
+            for name, value in default_headers.items():
+                if is_sensitive_key(name):
+                    register_secret(value)
 
         if retry is _UNSET:
             retry = Retry(
@@ -142,14 +153,17 @@ class APIClient:
         kwargs.setdefault("timeout", self.timeout)
         kwargs.setdefault("verify", self.verify_ssl)
 
-        # DEBUG: full request detail before sending
+        safe_url = redact_url(url)
+
+        # DEBUG: full request detail before sending (secrets redacted)
         if log.isEnabledFor(logging.DEBUG):
+            body = kwargs.get("json") or kwargs.get("data")
             log.debug(
                 "→ %s %s  headers=%s  body=%s",
                 method,
-                url,
-                dict(self._session.headers),
-                kwargs.get("json") or kwargs.get("data"),
+                safe_url,
+                redact_headers(self._session.headers),
+                redact(body) if isinstance(body, (dict, list, str)) else body,
             )
 
         start = time.monotonic()
@@ -159,29 +173,30 @@ class APIClient:
         api_resp = APIResponse(response, elapsed_ms)
 
         # INFO: one-liner always shown at INFO level
-        log.info("← %s %s  %s  (%.1f ms)", method, url, response.status_code, elapsed_ms)
+        log.info("← %s %s  %s  (%.1f ms)", method, safe_url, response.status_code, elapsed_ms)
+
+        # Redact before truncating so a cut can't leave a partial secret behind
+        res_body = redact_text(api_resp.response_body_text())
 
         # DEBUG: response body
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("   response body: %s", api_resp.response_body_text())
+            log.debug("   response body: %s", res_body)
 
-        # Structured sentinel — parsed by HTMLReporter to build request/response banners
+        # Structured sentinel — parsed by HTMLReporter to build request/response banners.
+        # Uses the prepared request's headers (what was actually sent, incl. auth),
+        # with sensitive values masked — tokens are never logged.
         log.debug(
             "__API_CALL__ %s",
             json.dumps(
                 {
                     "method": method,
-                    "url": url,
-                    "req_headers": {
-                        k: v
-                        for k, v in dict(self._session.headers).items()
-                        if k.lower() not in ("authorization",)  # never log auth tokens
-                    },
-                    "req_body": api_resp.request_body_text()[:2000],
+                    "url": safe_url,
+                    "req_headers": redact_headers(response.request.headers),
+                    "req_body": redact_text(api_resp.request_body_text())[:2000],
                     "status": response.status_code,
                     "elapsed_ms": round(elapsed_ms, 1),
-                    "res_headers": dict(response.headers),
-                    "res_body": api_resp.response_body_text()[:2000],
+                    "res_headers": redact_headers(response.headers),
+                    "res_body": res_body[:2000],
                 },
                 separators=(",", ":"),
             ),

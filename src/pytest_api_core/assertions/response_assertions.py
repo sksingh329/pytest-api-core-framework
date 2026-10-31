@@ -22,15 +22,27 @@ import re
 from typing import Any
 
 from pytest_api_core.client.api_response import APIResponse
+from pytest_api_core.security.redaction import (
+    is_sensitive_key,
+    is_sensitive_path,
+    mask,
+    redact,
+    redact_headers,
+    redact_text,
+    redact_url,
+    schema_error_message,
+)
 
 _assert_log = logging.getLogger("pytest_api_core.assertions")
 
 
 def _emit(name: str, passed: bool, **detail: Any) -> None:
-    """Emit a machine-readable sentinel line captured by HTMLReporter."""
+    """Emit a machine-readable sentinel line captured by HTMLReporter (secrets redacted)."""
     _assert_log.debug(
         "__API_ASSERT__ %s",
-        json.dumps({"name": name, "passed": passed, **detail}, separators=(",", ":")),
+        json.dumps(
+            {"name": name, "passed": passed, **redact(detail)}, separators=(",", ":"), default=str
+        ),
     )
 
 
@@ -54,8 +66,8 @@ class ResponseAssertions:
         if not passed:
             raise AssertionError(
                 f"Expected status {expected}, got {actual}.\n"
-                f"  URL: {self._response.url}\n"
-                f"  Body: {self._response.response_body_text()[:500]}"
+                f"  URL: {self._safe_url()}\n"
+                f"  Body: {self._safe_body()[:500]}"
             )
         return self
 
@@ -66,7 +78,7 @@ class ResponseAssertions:
         _emit("status_in", passed, expected=list(expected), actual=actual)
         if not passed:
             raise AssertionError(
-                f"Expected status in {expected}, got {actual}.\n" f"  URL: {self._response.url}"
+                f"Expected status in {expected}, got {actual}.\n" f"  URL: {self._safe_url()}"
             )
         return self
 
@@ -78,8 +90,8 @@ class ResponseAssertions:
         if not passed:
             raise AssertionError(
                 f"Expected 2xx status, got {actual}.\n"
-                f"  URL: {self._response.url}\n"
-                f"  Body: {self._response.response_body_text()[:500]}"
+                f"  URL: {self._safe_url()}\n"
+                f"  Body: {self._safe_body()[:500]}"
             )
         return self
 
@@ -112,7 +124,7 @@ class ResponseAssertions:
         if not passed:
             raise AssertionError(
                 f"Expected header '{name}' to be present.\n"
-                f"  Headers: {dict(self._response.headers)}"
+                f"  Headers: {redact_headers(self._response.headers)}"
             )
         return self
 
@@ -120,9 +132,13 @@ class ResponseAssertions:
         """Assert header *name* equals *expected* (case-insensitive name match)."""
         actual = self._response.headers.get(name)
         passed = actual == expected
+        if is_sensitive_key(name):
+            expected, actual = mask(expected), mask(actual)
         _emit("header_equals", passed, header=name, expected=expected, actual=actual)
         if not passed:
-            raise AssertionError(f"Expected header '{name}' = {expected!r}, got {actual!r}.")
+            raise AssertionError(
+                f"Expected header '{name}' = {redact(expected)!r}, got {redact(actual)!r}."
+            )
         return self
 
     def content_type_contains(self, fragment: str) -> "ResponseAssertions":
@@ -146,7 +162,7 @@ class ResponseAssertions:
         if not passed:
             raise AssertionError(
                 f"Expected JSON key '{key}' to be present.\n"
-                f"  Body keys: {list(body.keys()) if isinstance(body, dict) else body}"
+                f"  Body keys: {list(body.keys()) if isinstance(body, dict) else redact(body)}"
             )
         return self
 
@@ -154,15 +170,20 @@ class ResponseAssertions:
         """Assert top-level JSON key *key* equals *expected*."""
         body = self._json_body()
         if not isinstance(body, dict):
-            raise AssertionError(f"Response body is not a JSON object: {body!r}")
+            raise AssertionError(f"Response body is not a JSON object: {redact(body)!r}")
         actual = body.get(key, _UNSET)
+        shown_expected = mask(expected) if is_sensitive_key(key) else expected
         if actual is _UNSET:
-            _emit("key_equals", False, key=key, expected=expected, actual="<missing>")
+            _emit("key_equals", False, key=key, expected=shown_expected, actual="<missing>")
             raise AssertionError(f"Key '{key}' not found in response body.")
         passed = actual == expected
-        _emit("key_equals", passed, key=key, expected=expected, actual=actual)
+        shown_actual = mask(actual) if is_sensitive_key(key) else actual
+        _emit("key_equals", passed, key=key, expected=shown_expected, actual=shown_actual)
         if not passed:
-            raise AssertionError(f"Expected body['{key}'] = {expected!r}, got {actual!r}.")
+            raise AssertionError(
+                f"Expected body['{key}'] = {redact(shown_expected)!r}, "
+                f"got {redact(shown_actual)!r}."
+            )
         return self
 
     def body_contains(self, text: str) -> "ResponseAssertions":
@@ -171,8 +192,8 @@ class ResponseAssertions:
         _emit("body_contains", passed, expected=text)
         if not passed:
             raise AssertionError(
-                f"Expected response body to contain {text!r}.\n"
-                f"  Body (first 300 chars): {self._response.text[:300]}"
+                f"Expected response body to contain {redact(text)!r}.\n"
+                f"  Body (first 300 chars): {redact_text(self._response.text)[:300]}"
             )
         return self
 
@@ -246,9 +267,11 @@ class ResponseAssertions:
         self._json_path_value = _UNSET
         self._json_path_path = None
         passed = actual == expected
+        if is_sensitive_path(path):
+            expected, actual = mask(expected), mask(actual)
         _emit("equals", passed, path=path, expected=expected, actual=actual)
         if not passed:
-            raise AssertionError(f"Expected {expected!r}, got {actual!r}.")
+            raise AssertionError(f"Expected {redact(expected)!r}, got {redact(actual)!r}.")
         return self
 
     def matches(self, pattern: str) -> "ResponseAssertions":
@@ -260,9 +283,10 @@ class ResponseAssertions:
         self._json_path_value = _UNSET
         self._json_path_path = None
         passed = re.search(pattern, actual) is not None
-        _emit("matches", passed, path=path, pattern=pattern, actual=actual)
+        shown = mask(actual) if is_sensitive_path(path) else redact(actual)
+        _emit("matches", passed, path=path, pattern=pattern, actual=shown)
         if not passed:
-            raise AssertionError(f"Expected value to match /{pattern}/, got {actual!r}.")
+            raise AssertionError(f"Expected value to match /{pattern}/, got {shown!r}.")
         return self
 
     def is_not_none(self) -> "ResponseAssertions":
@@ -274,7 +298,8 @@ class ResponseAssertions:
         self._json_path_value = _UNSET
         self._json_path_path = None
         passed = actual is not None
-        _emit("is_not_none", passed, path=path, actual=actual)
+        shown = mask(actual) if is_sensitive_path(path) else actual
+        _emit("is_not_none", passed, path=path, actual=shown)
         if not passed:
             raise AssertionError("Expected value to be non-null.")
         return self
@@ -296,7 +321,7 @@ class ResponseAssertions:
         if not passed:
             raise AssertionError(
                 f"Expected response time < {max_ms}ms, got {actual:.1f}ms.\n"
-                f"  URL: {self._response.url}"
+                f"  URL: {self._safe_url()}"
             )
         return self
 
@@ -315,8 +340,9 @@ class ResponseAssertions:
                 "jsonschema is required for schema validation: pip install jsonschema"
             )
         except jsonschema.ValidationError as exc:
-            _emit("matches_schema", False, actual=exc.message)
-            raise AssertionError(f"Schema validation failed: {exc.message}") from exc
+            detail = schema_error_message(exc)
+            _emit("matches_schema", False, actual=detail)
+            raise AssertionError(f"Schema validation failed: {detail}") from exc
         _emit("matches_schema", True)
         return self
 
@@ -331,8 +357,14 @@ class ResponseAssertions:
             raise AssertionError(
                 f"Response body is not valid JSON.\n"
                 f"  Status: {self._response.status_code}\n"
-                f"  Body: {self._response.text[:200]}"
+                f"  Body: {redact_text(self._response.text)[:200]}"
             ) from exc
+
+    def _safe_url(self) -> str:
+        return redact_url(self._response.url)
+
+    def _safe_body(self) -> str:
+        return redact_text(self._response.response_body_text())
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +404,7 @@ def _resolve_path(data: Any, path: str) -> Any:
             current = current[token]
         except (KeyError, IndexError, TypeError) as exc:
             raise AssertionError(
-                f"Path token {token!r} not found in {type(current).__name__}: {current!r}"
+                f"Path token {token!r} not found in {type(current).__name__}: {redact(current)!r}"
             ) from exc
     return current
 

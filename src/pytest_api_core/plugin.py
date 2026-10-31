@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import os
 
 import pytest
 
@@ -21,6 +22,14 @@ from pytest_api_core.fixtures.api_fixtures import (
     auth_provider,
 )
 from pytest_api_core.reporters.html_reporter import HTMLReporter
+from pytest_api_core.security.redaction import (
+    add_sensitive_keys,
+    install_log_filter,
+    register_secret,
+)
+
+# Env vars whose values are always scrubbed from logs and the HTML report
+_SECRET_ENV_VARS = ("API_TOKEN", "API_PASSWORD", "API_KEY_VALUE")
 
 # ---------------------------------------------------------------------------
 # CLI options
@@ -113,6 +122,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Path to .env file loaded at session start (default: .env)",
         default=".env",
     )
+    parser.addini(
+        "api_redact_keys",
+        type="linelist",
+        help="Extra header/JSON/query keys whose values are redacted in logs and the HTML report",
+        default=[],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +142,12 @@ def pytest_configure(config: pytest.Config) -> None:
     # for settings.py class attributes and fixtures
     dotenv_path = config.getini("api_dotenv_file") or ".env"
     load_env_file(dotenv_path)
+
+    # Secret redaction — framework output never contains tokens/passwords
+    add_sensitive_keys(*config.getini("api_redact_keys"))
+    for var in _SECRET_ENV_VARS:
+        register_secret(os.environ.get(var))
+    install_log_filter()
 
     # Configure the framework logger level from CLI option or ini
     log_level = (

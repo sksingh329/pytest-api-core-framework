@@ -21,8 +21,9 @@ from pytest_api_core.auth.auth_handlers import (
 )
 from pytest_api_core.client.api_client import APIClient
 from pytest_api_core.client.api_response import APIResponse
+from pytest_api_core.security.redaction import add_sensitive_keys, register_secret
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __all__ = [
     "APIClient",
     "APIResponse",
@@ -38,4 +39,6 @@ __all__ = [
     "BasicAuth",
     "APIKeyAuth",
     "OAuth2ClientCredentials",
+    "register_secret",
+    "add_sensitive_keys",
 ]

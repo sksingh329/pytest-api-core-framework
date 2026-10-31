@@ -5,6 +5,25 @@ All notable changes to pytest-api-core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-10-31
+
+### Security
+- Secrets are now redacted (`***REDACTED***`) from raw logs, `__API_CALL__` /
+  `__API_ASSERT__` sentinels, assertion failure messages, and the HTML report.
+  Previously the DEBUG request log printed all session headers (incl. `Authorization`),
+  and only the `Authorization` header was stripped from the report — API keys, cookies,
+  tokens in bodies/URLs, and values in assertions on sensitive fields leaked.
+
+### Added
+- `pytest_api_core.security` module with `register_secret()` and `add_sensitive_keys()`
+  (also exported from `pytest_api_core`)
+- `api_redact_keys` ini option for extra sensitive key names
+- `sensitive=True` keyword on the standalone `assert_*` string helpers
+
+### Changed
+- Report request headers now show the headers actually sent (incl. auth, masked)
+  rather than the session's default headers
+
 ## [1.0.5] - 2026-07-05
 
 ### Fixed

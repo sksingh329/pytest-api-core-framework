@@ -23,6 +23,7 @@ from pytest_api_core.assertions import (
 from pytest_api_core.auth.auth_handlers import APIKeyAuth, BearerAuth
 from pytest_api_core.client.api_client import APIClient
 from pytest_api_core.config.config_manager import ConfigManager
+from pytest_api_core.security.redaction import REDACTED, register_secret, scrub_text
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -438,3 +439,138 @@ class TestReportPhaseLogging:
         all three pytest phases (setup/call/teardown), not just 'call'.
         """
         assert logging_fixture == "ready"
+
+
+# ---------------------------------------------------------------------------
+# Secret redaction — logs, sentinels, assertion messages
+# ---------------------------------------------------------------------------
+
+
+def _sentinels(caplog, marker):
+    return [
+        json.loads(r.getMessage().split(marker, 1)[1].strip())
+        for r in caplog.records
+        if marker in r.getMessage()
+    ]
+
+
+class TestSecretRedaction:
+    pytestmark = pytest.mark.unit
+
+    TOKEN = "s3cr3t-bearer-token-value"
+
+    @rsps_lib.activate
+    def test_api_call_sentinel_and_raw_log_never_contain_tokens(self, caplog):
+        rsps_lib.add(
+            rsps_lib.POST,
+            "https://api.example.com/login",
+            json={"access_token": "issued-access-token-123", "user": "alice"},
+            headers={"Set-Cookie": "session=cookie-value-xyz"},
+            status=200,
+        )
+        client = APIClient(
+            "https://api.example.com",
+            auth=BearerAuth(self.TOKEN),
+            default_headers={"X-API-Key": "header-api-key-456"},
+            retry=None,
+        )
+        with caplog.at_level("DEBUG", logger="pytest_api_core"):
+            client.post(
+                "/login?api_key=query-key-789", json={"username": "alice", "password": "hunter22"}
+            )
+
+        raw = caplog.text
+        for secret in (
+            self.TOKEN,
+            "issued-access-token-123",
+            "cookie-value-xyz",
+            "header-api-key-456",
+            "query-key-789",
+            "hunter22",
+        ):
+            assert secret not in raw
+
+        call = _sentinels(caplog, "__API_CALL__")[0]
+        assert call["req_headers"]["Authorization"] == REDACTED
+        assert call["req_headers"]["X-API-Key"] == REDACTED
+        assert call["res_headers"]["Set-Cookie"] == REDACTED
+        assert "api_key=" in call["url"] and "query-key-789" not in call["url"]
+        assert json.loads(call["res_body"]) == {"access_token": REDACTED, "user": "alice"}
+        assert json.loads(call["req_body"]) == {"username": "alice", "password": REDACTED}
+
+    @rsps_lib.activate
+    def test_key_equals_masks_sensitive_key_in_sentinel_and_error(self, client, caplog):
+        rsps_lib.add(rsps_lib.GET, "https://api.example.com/t", json={"access_token": "abc-real-1"})
+        resp = client.get("/t")
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            with pytest.raises(AssertionError) as exc:
+                assert_that(resp).key_equals("access_token", "abc-expected-2")
+
+        assert "abc-real-1" not in str(exc.value)
+        assert "abc-expected-2" not in str(exc.value)
+        result = _sentinels(caplog, "__API_ASSERT__")[0]
+        assert result["actual"] == REDACTED and result["expected"] == REDACTED
+
+    @rsps_lib.activate
+    def test_header_equals_masks_sensitive_header(self, client, caplog):
+        rsps_lib.add(
+            rsps_lib.GET,
+            "https://api.example.com/h",
+            json={},
+            headers={"X-Auth-Token": "resp-header-token"},
+        )
+        resp = client.get("/h")
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            assert_that(resp).header_equals("X-Auth-Token", "resp-header-token")
+
+        assert "resp-header-token" not in caplog.text
+        assert _sentinels(caplog, "__API_ASSERT__")[0]["actual"] == REDACTED
+
+    @rsps_lib.activate
+    def test_json_path_on_sensitive_path_is_masked(self, client, caplog):
+        rsps_lib.add(
+            rsps_lib.GET, "https://api.example.com/p", json={"data": {"refreshToken": "rt-999"}}
+        )
+        resp = client.get("/p")
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            assert_that(resp).json_path("$.data.refreshToken").is_not_none()
+
+        assert "rt-999" not in caplog.text
+        assert _sentinels(caplog, "__API_ASSERT__")[0]["actual"] == REDACTED
+
+    @rsps_lib.activate
+    def test_registered_secret_is_scrubbed_under_non_sensitive_key(self, client, caplog):
+        register_secret("leaked-into-plain-field")
+        rsps_lib.add(
+            rsps_lib.GET, "https://api.example.com/e", json={"echo": "leaked-into-plain-field"}
+        )
+        resp = client.get("/e")
+        with caplog.at_level("DEBUG", logger="pytest_api_core"):
+            assert_that(resp).json_path("$.echo").equals("leaked-into-plain-field")
+
+        assert "leaked-into-plain-field" not in caplog.text
+
+    def test_non_sensitive_values_are_not_redacted(self, caplog):
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            assert_equal("alice", "alice")
+        result = _sentinels(caplog, "__API_ASSERT__")[0]
+        assert result["actual"] == "alice" and result["expected"] == "alice"
+
+    def test_assert_utils_sensitive_flag_masks_values(self, caplog):
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            with pytest.raises(AssertionError) as exc:
+                assert_equal("plain-actual", "plain-expected", sensitive=True)
+        assert "plain-actual" not in str(exc.value)
+        assert "plain-actual" not in caplog.text
+        assert "plain-expected" not in caplog.text
+
+    def test_bearer_and_jwt_scrubbed_from_free_text(self):
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl"
+        text = scrub_text(f"Authorization: Bearer abc.def-ghi and token {jwt}")
+        assert "abc.def-ghi" not in text and jwt not in text
+
+    def test_schema_error_on_sensitive_field_hides_value(self):
+        schema = {"type": "object", "properties": {"password": {"type": "integer"}}}
+        with pytest.raises(AssertionError) as exc:
+            assert_matches_schema({"password": "pw-should-not-leak"}, schema)
+        assert "pw-should-not-leak" not in str(exc.value)

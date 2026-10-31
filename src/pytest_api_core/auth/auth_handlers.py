@@ -7,6 +7,7 @@ Usage
     client = APIClient(base_url, auth=BasicAuth("user", "pass"))
     client = APIClient(base_url, auth=APIKeyAuth("x-api-key", "secret"))
 """
+
 from __future__ import annotations
 
 import logging
@@ -16,6 +17,8 @@ from typing import Any
 import requests
 from requests.auth import AuthBase
 
+from pytest_api_core.security.redaction import register_secret
+
 log = logging.getLogger("pytest_api_core.auth")
 
 
@@ -24,6 +27,7 @@ class BearerAuth(AuthBase):
 
     def __init__(self, token: str) -> None:
         self._token = token
+        register_secret(token)
 
     def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
         r.headers["Authorization"] = f"Bearer {self._token}"
@@ -42,6 +46,7 @@ class BasicAuth(AuthBase):
 
     def __init__(self, username: str, password: str) -> None:
         self._inner = requests.auth.HTTPBasicAuth(username, password)
+        register_secret(password)
 
     def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
         return self._inner(r)
@@ -69,6 +74,7 @@ class APIKeyAuth(AuthBase):
             raise ValueError("location must be 'header' or 'query'")
         self._name = name
         self._value = value
+        register_secret(value)
         self._location = location
 
     def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
@@ -76,7 +82,7 @@ class APIKeyAuth(AuthBase):
             r.headers[self._name] = self._value
         else:
             # Append to existing query string
-            from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
+            from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
             parsed = urlparse(r.url or "")
             params = parse_qsl(parsed.query)
@@ -118,6 +124,7 @@ class OAuth2ClientCredentials(AuthBase):
         self._token_url = token_url
         self._client_id = client_id
         self._client_secret = client_secret
+        register_secret(client_secret)
         self._scope = scope
         self._refresh_buffer = refresh_buffer
 
@@ -139,6 +146,7 @@ class OAuth2ClientCredentials(AuthBase):
 
         payload: dict[str, Any] = response.json()
         self._access_token = payload["access_token"]
+        register_secret(self._access_token)
         expires_in: int = payload.get("expires_in", 3600)
         self._expires_at = time.monotonic() + expires_in
         log.debug("OAuth2 token acquired, expires in %ds", expires_in)

@@ -20,6 +20,8 @@ import logging
 import os
 from typing import Any
 
+from pytest_api_core.security.redaction import redact
+
 log = logging.getLogger("pytest_api_core.config")
 
 _DEFAULTS: dict[str, Any] = {
@@ -100,7 +102,7 @@ class ConfigManager:
             if value is not None:
                 cfg[cfg_key] = self._coerce(cfg_key, value)
 
-        log.debug("Loaded config for env=%r: %s", self._env, cfg)
+        log.debug("Loaded config for env=%r: %s", self._env, redact(cfg))
         self._cache = cfg
         return cfg
 

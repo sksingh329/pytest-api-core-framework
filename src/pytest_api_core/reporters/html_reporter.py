@@ -26,6 +26,8 @@ from typing import Any
 import pytest
 from jinja2 import Environment, PackageLoader
 
+from pytest_api_core.security.redaction import redact, scrub_text
+
 _jinja_env = Environment(
     loader=PackageLoader("pytest_api_core", "reporters/templates"),
     autoescape=True,
@@ -109,7 +111,7 @@ class HTMLReporter:
         if report.when == "setup" and report.skipped and not report.failed:
             rec.outcome = "skipped"
             if report.longrepr:
-                rec.longrepr = str(report.longrepr)
+                rec.longrepr = scrub_text(str(report.longrepr))
             return
 
         # setup, call, and teardown phases all contribute duration/logs/output —
@@ -134,9 +136,9 @@ class HTMLReporter:
         # value already includes setup + call + teardown output) — overwrite,
         # don't accumulate, or output would be duplicated.
         if report.capstdout:
-            rec.stdout = report.capstdout
+            rec.stdout = scrub_text(report.capstdout)
         if report.capstderr:
-            rec.stderr = report.capstderr
+            rec.stderr = scrub_text(report.capstderr)
 
         # Parse captured log sections. Unlike capstdout/capstderr, pytest
         # re-attaches each phase's *own* section verbatim to every later report
@@ -154,18 +156,18 @@ class HTMLReporter:
                 if "__API_CALL__" in raw_line:
                     try:
                         payload = raw_line.split("__API_CALL__", 1)[1].strip()
-                        rec.api_calls.append(json.loads(payload))
+                        rec.api_calls.append(redact(json.loads(payload)))
                     except (ValueError, IndexError):
                         pass
                     continue  # don't add to human log
                 if "__API_ASSERT__" in raw_line:
                     try:
                         payload = raw_line.split("__API_ASSERT__", 1)[1].strip()
-                        rec.assertions.append(json.loads(payload))
+                        rec.assertions.append(redact(json.loads(payload)))
                     except (ValueError, IndexError):
                         pass
                     continue  # don't add to human log
-                clean_lines.append(raw_line)
+                clean_lines.append(scrub_text(raw_line))
             section_text = "\n".join(clean_lines).strip()
             if section_text:
                 log_text += f"--- {header} ---\n{section_text}\n"
@@ -173,7 +175,7 @@ class HTMLReporter:
 
         # Capture failure text
         if report.longrepr:
-            rec.longrepr += ("\n\n" if rec.longrepr else "") + str(report.longrepr)
+            rec.longrepr += ("\n\n" if rec.longrepr else "") + scrub_text(str(report.longrepr))
 
     # -- session finish — write report ----------------------------------------
 

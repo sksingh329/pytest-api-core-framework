@@ -219,3 +219,5 @@ __marimo__/
 
 # Ignore reports dir
 reports/
+
+.ua/
