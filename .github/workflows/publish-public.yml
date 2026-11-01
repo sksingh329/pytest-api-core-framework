@@ -6,7 +6,7 @@
 #
 # Usage:
 #   Go to Actions → Publish to Public PyPI → Run workflow
-#   Enter version (e.g., 1.0.1) and choose whether to run tests
+#   Enter version (e.g., 1.0.8 — must match pyproject.toml) and choose whether to run tests
 
 name: Publish to Public PyPI
 

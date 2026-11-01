@@ -5,6 +5,12 @@ All notable changes to pytest-api-core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2026-11-01
+
+### Changed
+- First release published from the `sksingh329/pytest-api-core-framework` repository via
+  the "Publish to Public PyPI" workflow; no code changes from 1.0.7
+
 ## [1.0.7] - 2026-10-31
 
 ### Fixed
