@@ -569,6 +569,16 @@ class TestSecretRedaction:
         text = scrub_text(f"Authorization: Bearer abc.def-ghi and token {jwt}")
         assert "abc.def-ghi" not in text and jwt not in text
 
+    def test_quoted_sensitive_values_scrubbed_from_traceback_text(self):
+        text = scrub_text(
+            '            "token": "src-literal-value",\n'
+            "instance = {'id': 1, 'token': 'dict-repr-value', 'label': 'kept'}\n"
+            'client.login(password="kwarg-value", user="alice")'
+        )
+        for leaked in ("src-literal-value", "dict-repr-value", "kwarg-value"):
+            assert leaked not in text
+        assert "'label': 'kept'" in text and 'user="alice"' in text
+
     def test_schema_error_on_sensitive_field_hides_value(self):
         schema = {"type": "object", "properties": {"password": {"type": "integer"}}}
         with pytest.raises(AssertionError) as exc:

@@ -61,6 +61,12 @@ _JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*")
 _KV_RE = re.compile(r"([A-Za-z0-9_.\-]+)=([^&\s\"',;]+)")
 # "key": "value" pairs inside JSON text that couldn't be parsed (e.g. truncated).
 _JSON_KV_RE = re.compile(r'"([^"\\]+)"(\s*:\s*)"((?:[^"\\]|\\.)*)"')
+# Quoted values in free text such as pytest tracebacks, which print test source
+# (``"token": "abc"``, ``token="abc"``) and dict reprs (``'token': 'abc'``).
+_QUOTED_KV_RE = re.compile(
+    r"(?P<kq>[\"']?)(?P<key>[A-Za-z0-9_.\-]+)(?P=kq)(?P<sep>\s*[:=]\s*)"
+    r"(?P<vq>[\"'])(?:(?!(?P=vq))[^\\\n]|\\.)*(?P=vq)"
+)
 
 
 def _normalise(key: str) -> str:
@@ -101,7 +107,7 @@ def mask(value: Any) -> Any:
 
 
 def scrub_text(text: str) -> str:
-    """Remove registered secrets, auth-scheme credentials, JWTs and sensitive k=v pairs."""
+    """Remove registered secrets, auth-scheme credentials, JWTs and sensitive key/value pairs."""
     if not text:
         return text
     with _lock:
@@ -110,6 +116,14 @@ def scrub_text(text: str) -> str:
         text = text.replace(secret, REDACTED)
     text = _AUTH_SCHEME_RE.sub(lambda m: f"{m.group(1)} {REDACTED}", text)
     text = _JWT_RE.sub(REDACTED, text)
+    text = _QUOTED_KV_RE.sub(
+        lambda m: (
+            f"{m['kq']}{m['key']}{m['kq']}{m['sep']}{m['vq']}{REDACTED}{m['vq']}"
+            if is_sensitive_key(m["key"])
+            else m.group(0)
+        ),
+        text,
+    )
     text = _KV_RE.sub(
         lambda m: f"{m.group(1)}={REDACTED}" if is_sensitive_key(m.group(1)) else m.group(0), text
     )
