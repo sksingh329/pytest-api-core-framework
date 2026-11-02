@@ -12,19 +12,19 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 ## 2. Install the plugin
 
 ```bash
-pip install pytest-api-core==1.0.8
+pip install pytest-api-core==1.0.9
 ```
 
 With `.env` file support (recommended):
 
 ```bash
-pip install "pytest-api-core[dotenv]==1.0.8"
+pip install "pytest-api-core[dotenv]==1.0.9"
 ```
 
 ### Pin in `requirements.txt`
 
 ```
-pytest-api-core[dotenv]==1.0.8
+pytest-api-core[dotenv]==1.0.9
 ```
 
 ```bash
@@ -390,7 +390,7 @@ Shell env vars take highest priority and always override `settings.py` values.
 
 ```yaml
 - name: Install dependencies
-  run: pip install "pytest-api-core[dotenv]==1.0.8"
+  run: pip install "pytest-api-core[dotenv]==1.0.9"
 
 - name: Run API tests
   run: pytest tests/ -v
