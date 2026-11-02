@@ -574,3 +574,21 @@ class TestSecretRedaction:
         with pytest.raises(AssertionError) as exc:
             assert_matches_schema({"password": "pw-should-not-leak"}, schema)
         assert "pw-should-not-leak" not in str(exc.value)
+
+    @rsps_lib.activate
+    def test_matches_schema_failure_does_not_chain_raw_validation_error(self, client):
+        # Built at runtime so the literal isn't in the source lines the traceback shows.
+        secret = "-".join(["pat", "token", "should", "not", "leak"])
+        rsps_lib.add(
+            rsps_lib.GET,
+            "https://api.example.com/pat",
+            json={"id": 1, "token": secret},
+            status=200,
+        )
+        schema = {"type": "object", "required": ["label"]}
+        resp = client.get("/pat")
+        with pytest.raises(AssertionError) as exc:
+            assert_that(resp).matches_schema(schema)
+        assert exc.value.__cause__ is None
+        assert exc.value.__suppress_context__
+        assert secret not in str(exc.getrepr(chain=True))

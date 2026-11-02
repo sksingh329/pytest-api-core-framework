@@ -342,7 +342,9 @@ class ResponseAssertions:
         except jsonschema.ValidationError as exc:
             detail = schema_error_message(exc)
             _emit("matches_schema", False, actual=detail)
-            raise AssertionError(f"Schema validation failed: {detail}") from exc
+            # ``from None``: the ValidationError's str() dumps the whole failing
+            # instance, which pytest would print as the chained "direct cause".
+            raise AssertionError(f"Schema validation failed: {detail}") from None
         _emit("matches_schema", True)
         return self
 
