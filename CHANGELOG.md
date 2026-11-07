@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-08
+
 ### Fixed
 - A failing `soft_assertions()` block no longer shows the framework's own code
   (`soft.py`, `contextlib`) in the pytest traceback / HTML report — the failure

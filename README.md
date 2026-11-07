@@ -48,13 +48,13 @@ Browse real ones from this repo's CI on the [live reports dashboard](https://git
 ## Installation
 
 ```bash
-pip install pytest-api-core==1.1.0
+pip install pytest-api-core==1.1.1
 ```
 
 With `.env` file support (recommended):
 
 ```bash
-pip install "pytest-api-core[dotenv]==1.1.0"
+pip install "pytest-api-core[dotenv]==1.1.1"
 ```
 
 ---
