@@ -433,6 +433,24 @@ assert_that(r).json_path("$.items[0].price").equals(9.99)
 assert_that(r).json_path("$.status").matches(r"^(active|pending)$")
 assert_that(r).json_path("$.token").is_not_none()
 
+# More json_path() matchers — each consumes the value from the preceding json_path()
+assert_that(r).json_path("$.status").not_equals("deleted")
+assert_that(r).json_path("$.id").is_type("integer")      # or a Python type: is_type(int)
+#   JSON names: string, number, integer, boolean, array, object, null (bool is never a number)
+assert_that(r).json_path("$.name").contains("Ali")       # substring
+assert_that(r).json_path("$.tags").contains("admin")     # array element
+assert_that(r).json_path("$.meta").contains("version")   # object key
+assert_that(r).json_path("$.role").is_in(["admin", "editor"])
+assert_that(r).json_path("$.items").has_length(3)
+assert_that(r).json_path("$.errors").is_empty()
+assert_that(r).json_path("$.items").is_not_empty()
+assert_that(r).json_path("$.age").greater_than(17)
+assert_that(r).json_path("$.price").less_than(100)
+assert_that(r).json_path("$.score").between(0, 10)       # inclusive
+
+# Path existence (no json_path() needed first; a null value still counts as present)
+assert_that(r).has_path("$.data.items[0].id").not_has_path("$.error")
+
 # Headers
 assert_that(r).has_header("x-request-id")
 assert_that(r).content_type_contains("application/json")
@@ -468,6 +486,31 @@ assert_that(r).response_time_under(500)   # ms
 )
 ```
 
+### Soft assertions
+
+By default the first failing assertion stops the test. Wrap a block in
+`soft_assertions()` to run every check and fail **once** at the end with all
+the failures listed — handy when verifying many fields of one response:
+
+```python
+from pytest_api_core.assertions import assert_that, assert_equal, soft_assertions
+
+def test_user_profile(api_client):
+    r = api_client.get("/users/1")
+    with soft_assertions():
+        assert_that(r).status_is(200).json_path("$.name").equals("Alice")
+        assert_that(r).json_path("$.age").greater_than(18)
+        assert_that(r).json_path("$.email").matches(r"@example\.com$")
+        assert_equal(r.headers.get("X-Env"), "prod")
+# AssertionError: 2 soft assertion(s) failed:
+#   1) Expected 'Alice', got 'Bob'.
+#   2) Expected $.age > 18, got 15.
+```
+
+Every assertion (passed or failed) still shows as its own row in the HTML report.
+Nested blocks report through the outermost one; any other exception raised
+inside the block propagates unchanged.
+
 ### `json_path()` syntax
 
 `json_path()` implements a small built-in subset of dot/bracket-index navigation —
@@ -487,19 +530,35 @@ required to use it.
 - Slices (`$.items[0:2]`)
 
 If you need the full JSONPath spec, extract the value with a library like
-`jsonpath-ng` yourself and assert on the result directly, e.g.:
+`jsonpath-ng`, then check it with the framework's standalone helpers rather than
+a bare `assert`. You keep the HTML report row, secret redaction, a field name,
+and `soft_assertions()` support. A bare `assert` gets none of these.
 
 ```python
-from jsonpath_ng import parse
+from jsonpath_ng.ext import parse   # pip install jsonpath-ng  (.ext adds filter support)
+from pytest_api_core.assertions import assert_equal
 
-matches = [m.value for m in parse("$.items[*].id").find(r.json())]
-assert matches == [1, 2, 3]
+body = r.json()
+ids = [m.value for m in parse("$.items[*].id").find(body)]
+assert_equal(ids, [1, 2, 3], field="$.items[*].id")
+
+names = [m.value for m in parse("$.items[?(@.price > 10)].name").find(body)]
+assert_equal(len(names), 2, field="$.items[?(@.price > 10)].name (count)")
 ```
+
+Pass the JSONPath expression as `field=` so the report row shows what was checked.
+Without it, the field defaults to the variable name (`ids`). If the expression
+contains a sensitive key (for example `$..token`), the values are masked.
+
+> **Type hints:** `assert_equal` / `assert_not_equal` are annotated for `str` but
+> compare with `==` / `!=`, so lists and numbers work at runtime. If you run mypy
+> on your tests, add `# type: ignore[arg-type]` on those lines.
 
 ### Standalone assertion helpers
 
 For comparing arbitrary values outside the `assert_that()` chain — e.g. a value
-you've extracted yourself, or a non-HTTP value — use the standalone functions
+you've extracted yourself (for example with `jsonpath-ng`, see
+[`json_path()` syntax](#json_path-syntax)), or a non-HTTP value — use the standalone functions
 instead. They're plain functions, not tied to an `APIResponse`, but still show up
 in the HTML report the same way:
 
@@ -522,6 +581,14 @@ assert_is_not_empty(actual)
 
 # All of the above accept an optional custom message:
 assert_equal(actual, "expected-value", message="Usernames must match")
+
+# Each row in the HTML report is labelled with a field name, also prefixed to the
+# failure message. By default it's the source text of the first argument:
+assert_equal(user["name"], "Alice")        # field=user["name"] expected=Alice actual=Alice
+# ...or set it yourself (needed when the first argument is a literal or an
+# inline expression, which get no field name):
+assert_equal(user["name"], "Alice", field="user.name")
+# A sensitive field name (token, password, ...) masks the values in the report.
 
 # JSON Schema validation for any dict/value (not just a response body).
 # Unlike assert_that(r).matches_schema(...), which stops at the first

@@ -5,8 +5,10 @@ Uses 'responses' library to mock HTTP calls — no real network needed.
 
 import json
 import logging
+import re
 
 import pytest
+import requests
 import responses as rsps_lib
 
 from pytest_api_core.assertions import (
@@ -19,10 +21,17 @@ from pytest_api_core.assertions import (
     assert_matches_schema,
     assert_not_equal,
     assert_that,
+    soft_assertions,
 )
 from pytest_api_core.auth.auth_handlers import APIKeyAuth, BearerAuth
 from pytest_api_core.client.api_client import APIClient
 from pytest_api_core.config.config_manager import ConfigManager
+from pytest_api_core.reporters.html_reporter import (
+    _endpoint_stats,
+    _render_report,
+    _TestRecord,
+    _to_curl,
+)
 from pytest_api_core.security.redaction import REDACTED, register_secret, scrub_text
 
 # ---------------------------------------------------------------------------
@@ -270,6 +279,92 @@ class TestAssertUtils:
         payload = json.loads(sentinel_line.message.split("__API_ASSERT__", 1)[1].strip())
         assert json.loads(payload["schema"]) == schema
         assert json.loads(payload["actual"]) == {"id": 1}
+
+    def test_field_name_and_value_in_sentinel(self, caplog):
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            assert_equal("Alice", "Alice", field="user.name")
+            assert_contains("hello world", "world", field="greeting")
+
+        eq, contains = _sentinels(caplog, "__API_ASSERT__")
+        assert eq["field"] == "user.name"
+        assert eq["expected"] == "Alice" and eq["actual"] == "Alice"
+        assert contains["field"] == "greeting"
+        assert contains["expected_substring"] == "world"
+
+    def test_field_omitted_for_literal_argument(self, caplog):
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            assert_equal("a", "a")
+        assert "field" not in _sentinels(caplog, "__API_ASSERT__")[0]
+
+    def test_field_inferred_from_first_argument(self, caplog):
+        body = {"user": {"name": "Alice"}}
+        username = "Alice"
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            assert_equal(body["user"]["name"], "Alice")
+            assert_contains(
+                username,
+                "Ali",
+            )
+        first, second = _sentinels(caplog, "__API_ASSERT__")
+        assert first["field"] == 'body["user"]["name"]'
+        assert second["field"] == "username"
+
+    def test_inferred_field_in_failure_message(self):
+        status = "inactive"
+        with pytest.raises(AssertionError, match=r"\[status\] Expected 'active'"):
+            assert_equal(status, "active")
+
+    def test_inferred_sensitive_field_masks_values(self, caplog):
+        body = {"access_token": "inferred-secret"}
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            assert_is_not_empty(body["access_token"])
+        result = _sentinels(caplog, "__API_ASSERT__")[0]
+        assert result["field"] == 'body["access_token"]'
+        assert result["actual"] == REDACTED
+        assert "inferred-secret" not in caplog.text
+
+    def test_field_not_inferred_from_inline_literals(self, caplog):
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            assert_equal(str({"note": "inline-value"}), str({"note": "inline-value"}))
+            assert_matches_schema({"note": "inline-value"}, {"type": "object"})
+        assert all("field" not in s for s in _sentinels(caplog, "__API_ASSERT__"))
+
+    def test_explicit_field_overrides_inferred(self, caplog):
+        value = "x"
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            assert_equal(value, "x", field="custom")
+        assert _sentinels(caplog, "__API_ASSERT__")[0]["field"] == "custom"
+
+    def test_field_prefixes_failure_message(self):
+        with pytest.raises(AssertionError, match=r"\[user\.name\] Expected 'Alice', got 'Bob'"):
+            assert_equal("Bob", "Alice", field="user.name")
+
+    def test_sensitive_field_name_masks_values(self, caplog):
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            with pytest.raises(AssertionError) as exc:
+                assert_equal("tok-actual", "tok-expected", field="access_token")
+        assert "tok-actual" not in str(exc.value) and "tok-actual" not in caplog.text
+        result = _sentinels(caplog, "__API_ASSERT__")[0]
+        assert result["field"] == "access_token"
+        assert result["actual"] == REDACTED and result["expected"] == REDACTED
+
+    @rsps_lib.activate
+    def test_has_key_and_has_header_record_value(self, client, caplog):
+        rsps_lib.add(
+            rsps_lib.GET,
+            "https://api.example.com/v",
+            json={"name": "Alice", "token": "secret-val"},
+            headers={"X-Request-Id": "req-1"},
+        )
+        resp = client.get("/v")
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            assert_that(resp).has_key("name").has_key("token").has_header("X-Request-Id")
+
+        name, token, header = _sentinels(caplog, "__API_ASSERT__")
+        assert name["key"] == "name" and name["actual"] == "Alice"
+        assert token["actual"] == REDACTED
+        assert header["header"] == "X-Request-Id" and header["actual"] == "req-1"
+        assert "secret-val" not in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -552,8 +647,9 @@ class TestSecretRedaction:
 
     def test_non_sensitive_values_are_not_redacted(self, caplog):
         with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
-            assert_equal("alice", "alice")
+            assert_equal("alice", "alice", field="username")
         result = _sentinels(caplog, "__API_ASSERT__")[0]
+        assert result["field"] == "username"
         assert result["actual"] == "alice" and result["expected"] == "alice"
 
     def test_assert_utils_sensitive_flag_masks_values(self, caplog):
@@ -602,3 +698,277 @@ class TestSecretRedaction:
         assert exc.value.__cause__ is None
         assert exc.value.__suppress_context__
         assert secret not in str(exc.getrepr(chain=True))
+
+
+# ---------------------------------------------------------------------------
+# Failed requests in the report
+# ---------------------------------------------------------------------------
+
+
+class TestFailedRequestCapture:
+    pytestmark = pytest.mark.unit
+
+    @rsps_lib.activate
+    def test_timeout_emits_error_sentinel_and_reraises(self, client, caplog):
+        rsps_lib.add(
+            rsps_lib.GET,
+            "https://api.example.com/slow",
+            body=requests.exceptions.ConnectTimeout("timed out for token=abc123secret"),
+        )
+        with caplog.at_level("DEBUG", logger="pytest_api_core.client"):
+            with pytest.raises(requests.exceptions.ConnectTimeout):
+                client.get("/slow", headers={"Authorization": "Bearer live-bearer-value"})
+
+        call = _sentinels(caplog, "__API_CALL__")[0]
+        assert call["status"] is None
+        assert call["error"].startswith("ConnectTimeout")
+        assert call["method"] == "GET" and call["url"].endswith("/slow")
+        assert "abc123secret" not in caplog.text
+        assert "live-bearer-value" not in caplog.text
+
+    def test_report_renders_error_banner(self):
+        rec = _TestRecord("tests/test_x.py::test_slow")
+        rec.outcome = "failed"
+        rec.api_calls = [
+            {
+                "method": "GET",
+                "url": "https://api.example.com/slow",
+                "req_headers": {},
+                "req_body": "",
+                "status": None,
+                "elapsed_ms": 30001.0,
+                "res_headers": {},
+                "res_body": "",
+                "error": "ReadTimeout: read timed out",
+            }
+        ]
+        html = _render_report(
+            [rec], __import__("datetime").datetime.now(), 1.0, "dark", "t", "h", []
+        )
+        assert "status-err" in html and ">ERROR<" in html
+        assert "ReadTimeout: read timed out" in html
+
+    @rsps_lib.activate
+    def test_success_sentinel_flags_truncated_body(self, client, caplog):
+        rsps_lib.add(rsps_lib.POST, "https://api.example.com/big", json={})
+        with caplog.at_level("DEBUG", logger="pytest_api_core.client"):
+            client.post("/big", data="x" * 2500)
+        call = _sentinels(caplog, "__API_CALL__")[0]
+        assert call["req_body_truncated"] is True and len(call["req_body"]) == 2000
+        assert "error" not in call
+
+
+# ---------------------------------------------------------------------------
+# cURL export + endpoint performance
+# ---------------------------------------------------------------------------
+
+
+class TestReportExtras:
+    pytestmark = pytest.mark.unit
+
+    def test_to_curl_quotes_and_skips_content_length(self):
+        cmd = _to_curl(
+            {
+                "method": "POST",
+                "url": "https://api.example.com/users?q=a b",
+                "req_headers": {
+                    "Authorization": REDACTED,
+                    "Content-Type": "application/json",
+                    "Content-Length": "17",
+                },
+                "req_body": '{"name": "O\'Brien"}',
+            }
+        )
+        assert cmd.startswith("curl -X POST 'https://api.example.com/users?q=a b'")
+        assert f"-H 'Authorization: {REDACTED}'" in cmd
+        assert "Content-Length" not in cmd
+        assert '--data-raw \'{"name": "O\'"\'"\'Brien"}\'' in cmd
+        assert "truncated" not in cmd
+
+    def test_to_curl_notes_truncated_body(self):
+        cmd = _to_curl({"method": "POST", "url": "u", "req_body": "x", "req_body_truncated": True})
+        assert cmd.endswith("# body truncated in report")
+
+    def test_endpoint_stats_groups_ids_and_computes_percentiles(self):
+        rec = _TestRecord("t::a")
+        rec.api_calls = [
+            {
+                "method": "GET",
+                "url": f"https://h/users/{i}?x=1",
+                "status": 200,
+                "elapsed_ms": float(i),
+            }
+            for i in range(1, 21)
+        ] + [
+            {
+                "method": "GET",
+                "url": "https://h/users/3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "status": None,
+                "elapsed_ms": 5.0,
+                "error": "ConnectionError: x",
+            },
+            {"method": "POST", "url": "https://h/users", "status": 503, "elapsed_ms": 900.0},
+        ]
+        stats = {(s["method"], s["endpoint"]): s for s in _endpoint_stats([rec])}
+        users = stats[("GET", "/users/{id}")]
+        assert users["count"] == 21 and users["errors"] == 1
+        assert users["min"] == 1.0 and users["max"] == 20.0
+        assert users["p50"] == 10.0 and users["p95"] == 19.0
+        assert stats[("POST", "/users")]["errors"] == 1
+        # slowest p95 first
+        assert _endpoint_stats([rec])[0]["endpoint"] == "/users"
+
+
+# ---------------------------------------------------------------------------
+# json_path matchers
+# ---------------------------------------------------------------------------
+
+_BODY = {
+    "name": "Alice",
+    "age": 30,
+    "active": True,
+    "tags": ["a", "b"],
+    "meta": {"k": 1},
+    "empty": [],
+    "nothing": None,
+    "data": {"token": "tok-secret-1"},
+}
+
+
+class TestJsonPathMatchers:
+    pytestmark = pytest.mark.unit
+
+    @pytest.fixture()
+    def resp(self, client):
+        with rsps_lib.RequestsMock() as rsps:
+            rsps.add(rsps_lib.GET, "https://api.example.com/m", json=_BODY)
+            yield client.get("/m")
+
+    @pytest.mark.parametrize(
+        "path, matcher, args",
+        [
+            ("$.name", "not_equals", ("Bob",)),
+            ("$.name", "is_type", ("string",)),
+            ("$.age", "is_type", (int,)),
+            ("$.age", "is_type", ("number",)),
+            ("$.nothing", "is_type", ("null",)),
+            ("$.active", "is_type", (bool,)),
+            ("$.name", "contains", ("lic",)),
+            ("$.tags", "contains", ("b",)),
+            ("$.meta", "contains", ("k",)),
+            ("$.name", "is_in", (["Alice", "Bob"],)),
+            ("$.tags", "has_length", (2,)),
+            ("$.empty", "is_empty", ()),
+            ("$.tags", "is_not_empty", ()),
+            ("$.age", "greater_than", (18,)),
+            ("$.age", "less_than", (31,)),
+            ("$.age", "between", (30, 30)),
+        ],
+    )
+    def test_matcher_passes(self, resp, path, matcher, args):
+        getattr(assert_that(resp).json_path(path), matcher)(*args)
+
+    @pytest.mark.parametrize(
+        "path, matcher, args, message",
+        [
+            ("$.name", "not_equals", ("Alice",), "to differ"),
+            ("$.active", "is_type", ("integer",), "type integer, got boolean"),
+            ("$.active", "is_type", (int,), "type int, got boolean"),
+            ("$.name", "contains", ("zzz",), "to contain"),
+            ("$.age", "contains", (3,), "got integer"),
+            ("$.name", "is_in", (["Bob"],), "one of"),
+            ("$.tags", "has_length", (3,), "length 3, got 2"),
+            ("$.age", "has_length", (1,), "got <integer>"),
+            ("$.tags", "is_empty", (), "to be empty"),
+            ("$.empty", "is_not_empty", (), "non-empty"),
+            ("$.age", "greater_than", (30,), "> 30"),
+            ("$.age", "less_than", (30,), "< 30"),
+            ("$.age", "between", (31, 40), "in [31, 40]"),
+            ("$.name", "greater_than", (1,), "got string"),
+        ],
+    )
+    def test_matcher_fails(self, resp, path, matcher, args, message):
+        with pytest.raises(AssertionError, match=re.escape(message)):
+            getattr(assert_that(resp).json_path(path), matcher)(*args)
+
+    def test_unknown_json_type_name_raises_value_error(self, resp):
+        with pytest.raises(ValueError, match="Unknown JSON type"):
+            assert_that(resp).json_path("$.name").is_type("str")
+
+    def test_matcher_requires_json_path_first(self, resp):
+        with pytest.raises(RuntimeError, match=r"before \.contains\(\)"):
+            assert_that(resp).contains("x")
+
+    def test_has_path_and_not_has_path(self, resp):
+        assert_that(resp).has_path("$.tags[1]").has_path("$.nothing").not_has_path("$.missing")
+        with pytest.raises(AssertionError, match="to exist"):
+            assert_that(resp).has_path("$.tags[5]")
+        with pytest.raises(AssertionError, match="to be absent"):
+            assert_that(resp).not_has_path("$.name")
+
+    def test_sensitive_path_values_masked(self, resp, caplog):
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            with pytest.raises(AssertionError) as exc:
+                assert_that(resp).json_path("$.data.token").contains("nope")
+            with pytest.raises(AssertionError):
+                assert_that(resp).json_path("$.data.token").greater_than(1)
+        assert "tok-secret-1" not in caplog.text and "tok-secret-1" not in str(exc.value)
+        assert all(s["actual"] == REDACTED for s in _sentinels(caplog, "__API_ASSERT__"))
+
+
+# ---------------------------------------------------------------------------
+# Soft assertions
+# ---------------------------------------------------------------------------
+
+
+class TestSoftAssertions:
+    pytestmark = pytest.mark.unit
+
+    @pytest.fixture()
+    def resp(self, client):
+        with rsps_lib.RequestsMock() as rsps:
+            rsps.add(rsps_lib.GET, "https://api.example.com/s", json={"name": "Alice", "age": 30})
+            yield client.get("/s")
+
+    def test_collects_all_failures_and_raises_once(self, resp, caplog):
+        with caplog.at_level("DEBUG", logger="pytest_api_core.assertions"):
+            with pytest.raises(AssertionError) as exc:
+                with soft_assertions():
+                    assert_that(resp).status_is(404).json_path("$.name").equals("Bob")
+                    assert_that(resp).json_path("$.age").greater_than(40)
+                    assert_equal("x", "y", field="other")
+        text = str(exc.value)
+        assert text.startswith("4 soft assertion(s) failed:")
+        for fragment in ("Expected status 404", "'Bob'", "> 40", "[other]"):
+            assert fragment in text
+        # every assertion still reaches the report
+        assert [s["passed"] for s in _sentinels(caplog, "__API_ASSERT__")] == [False] * 4
+
+    def test_passing_block_does_not_raise(self, resp):
+        with soft_assertions():
+            assert_that(resp).status_is(200).json_path("$.name").equals("Alice")
+
+    def test_failed_json_path_reported_once(self, resp):
+        with pytest.raises(AssertionError) as exc:
+            with soft_assertions():
+                assert_that(resp).json_path("$.missing.deep").equals(1).has_key("name")
+        assert str(exc.value).startswith("1 soft assertion(s) failed:")
+        assert "missing" in str(exc.value)
+
+    def test_nested_blocks_raise_once_from_outer(self):
+        with pytest.raises(AssertionError) as exc:
+            with soft_assertions():
+                with soft_assertions():
+                    assert_equal("a", "b")
+                assert_equal("c", "d")
+        assert str(exc.value).startswith("2 soft assertion(s) failed:")
+
+    def test_other_exception_propagates_unchanged(self):
+        with pytest.raises(KeyError):
+            with soft_assertions():
+                assert_equal("a", "b")
+                raise KeyError("boom")
+
+    def test_hard_mode_unchanged_outside_block(self, resp):
+        with pytest.raises(AssertionError, match="Expected status 404"):
+            assert_that(resp).status_is(404).json_path("$.name").equals("Bob")

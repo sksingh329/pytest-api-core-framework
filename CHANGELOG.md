@@ -5,6 +5,45 @@ All notable changes to pytest-api-core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Standalone assertion helpers (`assert_equal`, `assert_contains`, …) label each
+  assertion with a field name, shown in the HTML report next to the expected/actual
+  values and prefixed to the failure message. It defaults to the source text of the
+  first argument (e.g. `body["name"]`) when that is a variable, attribute or subscript,
+  and can be set with `field="..."`; a sensitive field name masks the values
+- `has_key()` / `has_header()` now record the value found, so the report shows it
+- The HTML report now shows the substring checked by `assert_contains`
+- `soft_assertions()` context manager: collects every failing assertion in the block
+  (both `assert_that(...)` chains and `assert_*` helpers) and raises one combined
+  `AssertionError` at the end; every assertion still appears in the HTML report
+- New `json_path()` matchers: `not_equals`, `is_type`, `contains`, `is_in`, `has_length`,
+  `is_empty`, `is_not_empty`, `greater_than`, `less_than`, `between`; plus chain-level
+  `has_path()` / `not_has_path()`
+- A failing `json_path()` (missing path) now emits its own row in the HTML report
+- Requests that fail without a response (timeouts, connection errors) now appear in the
+  HTML report as an ERROR banner with the redacted error message; the exception is
+  still re-raised
+- "Copy cURL" button on each request in the HTML report (built from the redacted data,
+  so secrets show as `***REDACTED***`)
+- "Endpoint performance" table in the HTML report: calls, min/p50/p95/max latency and
+  error count per `METHOD /path/{id}`, slowest p95 first
+
+### Changed
+- Standalone helpers now take their field name from the first argument when `field=`
+  isn't passed. If any part of that name looks sensitive (`token`, `password`, …), the
+  values are masked in the report and failure message — e.g. `assert_equal(token_count, 3)`
+  now shows `***REDACTED***`. Pass a non-sensitive name such as `field="count"` to show them
+- `has_key()` / `has_header()` report rows now include the value found (masked for
+  sensitive keys and headers)
+- `ResponseAssertions` methods are wrapped to support soft mode; outside
+  `soft_assertions()` behaviour is unchanged and the wrapper frame is hidden from
+  pytest tracebacks
+- Docs: values extracted with jsonpath-ng are now shown checked with the standalone
+  helpers (`assert_equal(..., field=...)`) instead of a bare `assert`, so they keep the
+  HTML report row, redaction and `soft_assertions()` support
+
 ## [1.0.10] - 2026-11-02
 
 ### Fixed

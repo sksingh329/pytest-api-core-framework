@@ -9,7 +9,7 @@
 ## Features
 
 - **`APIClient`** — `requests.Session` wrapper with retry, timeout, and structured logging
-- **Fluent assertions** — `assert_that(response).status_is(200).json_path("$.id").equals(1)`
+- **Fluent assertions** — `assert_that(response).status_is(200).json_path("$.id").equals(1)`, plus `json_path` matchers like `is_type`, `contains`, `is_in`, `has_length`, `greater_than`/`less_than`/`between` and `has_path()`
   (`json_path()` supports a small dot/bracket-index subset, not full JSONPath — see [docs/QUICKSTART.md](docs/QUICKSTART.md#json_path-syntax);
   `response_time_under()` measures the whole request including any retries, not just the final attempt)
 - **Auth strategies** — Bearer token, Basic, API Key (header/query), OAuth2 client credentials
@@ -17,7 +17,10 @@
 - **Standalone assertion helpers** — `assert_equal`, `assert_contains`, `assert_matches`, `assert_matches_schema`, etc. for values outside an `APIResponse` — see [docs/QUICKSTART.md](docs/QUICKSTART.md#standalone-assertion-helpers)
 - **Configurable retry policy** — max attempts, backoff factor, and retryable methods, overridable per environment (see below)
 - **Environment config** — Python `settings.py` classes + `.env` file + env var overrides
-- **Custom HTML report** — self-contained file with charts, filterable table, and request/response details
+- **Soft assertions** — `with soft_assertions():` runs every check and fails once with all the failures listed — see [docs/QUICKSTART.md](docs/QUICKSTART.md#soft-assertions)
+- **Custom HTML report** — self-contained file with charts, filterable table, and request/response details,
+  a "Copy cURL" button per request (secrets stay redacted), an ERROR banner for timeouts / connection errors,
+  and a per-endpoint latency table (min/p50/p95/max)
 - **Secret redaction** — tokens, passwords, API keys and cookies are masked in logs, assertion messages, and the HTML report (see [Secret redaction](#secret-redaction))
 - **Auto-registered fixtures** — zero boilerplate in consuming projects
 

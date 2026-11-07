@@ -12,6 +12,18 @@ from typing import Any
 import requests
 
 
+def body_to_text(body: Any) -> str:
+    """Return a prepared request body as text, pretty-printed if it is JSON (best-effort)."""
+    if body is None:
+        return ""
+    if isinstance(body, bytes):
+        try:
+            return json.dumps(json.loads(body), indent=2)
+        except (ValueError, TypeError):
+            return body.decode("utf-8", errors="replace")
+    return str(body)
+
+
 class APIResponse:
     """Wraps requests.Response with additional convenience methods."""
 
@@ -80,16 +92,7 @@ class APIResponse:
 
     def request_body_text(self) -> str:
         """Return the raw request body as a string (best-effort)."""
-        body = self._response.request.body
-        if body is None:
-            return ""
-        if isinstance(body, bytes):
-            try:
-                parsed = json.loads(body)
-                return json.dumps(parsed, indent=2)
-            except (ValueError, TypeError):
-                return body.decode("utf-8", errors="replace")
-        return str(body)
+        return body_to_text(self._response.request.body)
 
     def response_body_text(self) -> str:
         """Return the response body pretty-printed if JSON, else raw text."""

@@ -116,6 +116,22 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align:
 .status-3xx { background: #1e3a5f; color: #93c5fd; }
 .status-4xx { background: #7f1d1d; color: #fca5a5; }
 .status-5xx { background: #7c2d12; color: #fdba74; }
+.status-err { background: #991b1b; color: #fecaca; letter-spacing: .5px; }
+.http-error-line { display: block; color: #fca5a5; font-size: 11px; margin-top: 2px; }
+.http-error-pre { color: #fca5a5; }
+.curl-btn { background: none; border: 1px solid #475569; border-radius: 4px; color: #cbd5e1;
+            font-size: 10px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+.curl-btn:hover { border-color: #94a3b8; color: #f1f5f9; }
+
+/* ── Endpoint performance ───────────────────────────────────────────── */
+.perf-card { background: var(--surface); border-radius: 12px; box-shadow: var(--shadow);
+             margin-bottom: 24px; overflow: hidden; }
+.perf-card > summary { padding: 14px 20px; cursor: pointer; font-weight: 600; font-size: 14px; }
+.perf-card > summary span { color: var(--text-muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
+.perf-card table { box-shadow: none; border-radius: 0; }
+.perf-card td.num, .perf-card th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.perf-endpoint { font-family: "SF Mono", "Fira Code", monospace; font-size: 12px; overflow-wrap: anywhere; }
+.perf-err { color: var(--fail); font-weight: 700; }
 .elapsed-chip { font-size: 11px; color: #94a3b8; white-space: nowrap; }
 .http-chevron { font-size: 10px; color: #64748b; transition: transform .2s; }
 .http-chevron.open { transform: rotate(90deg); }
@@ -222,6 +238,41 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
     </div>
   </div>
 
+  {% if endpoint_stats %}
+  <!-- Endpoint performance -->
+  <details class="perf-card">
+    <summary>Endpoint performance<span>{{ endpoint_stats | length }} endpoint(s), slowest p95 first</span></summary>
+    <table>
+      <thead>
+        <tr>
+          <th>Endpoint</th>
+          <th class="num">Calls</th>
+          <th class="num">Min</th>
+          <th class="num">p50</th>
+          <th class="num">p95</th>
+          <th class="num">Max</th>
+          <th class="num">Errors</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in endpoint_stats %}
+        <tr>
+          <td class="perf-endpoint">
+            <span class="method-badge method-{{ s.method }}">{{ s.method }}</span> {{ s.endpoint }}
+          </td>
+          <td class="num">{{ s.count }}</td>
+          <td class="num">{{ s.min }} ms</td>
+          <td class="num">{{ s.p50 }} ms</td>
+          <td class="num">{{ s.p95 }} ms</td>
+          <td class="num">{{ s.max }} ms</td>
+          <td class="num {% if s.errors %}perf-err{% endif %}">{{ s.errors }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endif %}
+
   <!-- Filters -->
   <div class="controls">
     <input class="search-box" type="text" placeholder="Search tests…"
@@ -287,27 +338,43 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             {% for call in rec.api_calls %}
             {% set cid = "call-" ~ idx ~ "-" ~ loop.index0 %}
             {% set sc = call.status | string %}
-            {% if sc.startswith('2') %}{% set sc_cls = "status-2xx" %}
+            {% if call.error is defined %}{% set sc_cls = "status-err" %}
+            {% elif sc.startswith('2') %}{% set sc_cls = "status-2xx" %}
             {% elif sc.startswith('3') %}{% set sc_cls = "status-3xx" %}
             {% elif sc.startswith('4') %}{% set sc_cls = "status-4xx" %}
             {% else %}{% set sc_cls = "status-5xx" %}{% endif %}
+            {% set is_err = call.error is defined %}
             <div class="http-banner">
               <div class="http-headline" onclick="toggleHttp('{{ cid }}', this)">
                 <span class="method-badge method-{{ call.method }}">{{ call.method }}</span>
-                <span class="http-url">{{ call.url }}</span>
-                <span class="status-chip {{ sc_cls }}">{{ call.status }}</span>
+                <span class="http-url">{{ call.url }}
+                  {% if is_err %}<span class="http-error-line">{{ call.error }}</span>{% endif %}
+                </span>
+                <span class="status-chip {{ sc_cls }}">{% if is_err %}ERROR{% else %}{{ call.status }}{% endif %}</span>
                 <span class="elapsed-chip">{{ call.elapsed_ms }} ms</span>
+                <button class="curl-btn" type="button"
+                        onclick="event.stopPropagation(); copyCurl('curl-{{ cid }}', this)">Copy cURL</button>
                 <span class="http-chevron" id="chev-{{ cid }}">▶</span>
               </div>
+              <pre class="curl-src" id="curl-{{ cid }}" hidden>{{ call | curl }}</pre>
               <div class="http-body" id="{{ cid }}">
                 <div class="http-tabs">
-                  <div class="http-tab active" onclick="switchTab(this, 'req-h-{{ cid }}')">Req Headers</div>
+                  {% if is_err %}
+                  <div class="http-tab active" onclick="switchTab(this, 'err-{{ cid }}')">Error</div>
+                  {% endif %}
+                  <div class="http-tab {% if not is_err %}active{% endif %}" onclick="switchTab(this, 'req-h-{{ cid }}')">Req Headers</div>
                   <div class="http-tab" onclick="switchTab(this, 'req-b-{{ cid }}')">Req Body</div>
                   <div class="http-tab" onclick="switchTab(this, 'res-h-{{ cid }}')">Res Headers</div>
                   <div class="http-tab" onclick="switchTab(this, 'res-b-{{ cid }}')">Res Body</div>
                 </div>
 
-                <div id="req-h-{{ cid }}" class="http-tab-content active">
+                {% if is_err %}
+                <div id="err-{{ cid }}" class="http-tab-content active">
+                  <pre class="http-body-pre http-error-pre">{{ call.error }}</pre>
+                </div>
+                {% endif %}
+
+                <div id="req-h-{{ cid }}" class="http-tab-content{% if not is_err %} active{% endif %}">
                   <table class="http-kv-table">
                     <tr><th>Header</th><th>Value</th></tr>
                     {% for k, v in call.req_headers.items() %}
@@ -351,6 +418,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <span class="assert-name">{{ a.name }}</span>
                   {% if a.name == 'assert_matches_schema' %}
                   <span class="assert-detail">
+                    {% if a.field is defined %}
+                      field=<span class="exp">{{ a.field }}</span> &nbsp;
+                    {% endif %}
                     {% if a.errors is defined and a.errors %}
                       {{ a.errors | length }} error(s):
                       <ul class="assert-errors">
@@ -360,6 +430,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   </span>
                   {% else %}
                   <span class="assert-detail">
+                    {% if a.field is defined %}
+                      field=<span class="exp">{{ a.field }}</span> &nbsp;
+                    {% endif %}
                     {% if a.path is defined %}
                       path=<span class="exp">{{ a.path }}</span> &nbsp;
                     {% endif %}
@@ -371,6 +444,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     {% endif %}
                     {% if a.key is defined %}
                       key=<span class="exp">{{ a.key }}</span> &nbsp;
+                    {% endif %}
+                    {% if a.expected_substring is defined %}
+                      contains=<span class="exp">{{ a.expected_substring }}</span> &nbsp;
                     {% endif %}
                     {% if a.expected is defined and a.actual is defined %}
                       expected=<span class="exp">{{ a.expected }}</span>
@@ -488,6 +564,34 @@ function switchTab(tabEl, contentId) {
   tabEl.classList.add('active');
   var el = document.getElementById(contentId);
   if (el) el.classList.add('active');
+}
+
+function copyCurl(srcId, btn) {
+  var src = document.getElementById(srcId);
+  if (!src) return;
+  var text = src.textContent;
+  function done(ok) {
+    var label = btn.textContent;
+    btn.textContent = ok ? 'Copied' : 'Copy failed';
+    setTimeout(function() { btn.textContent = label; }, 1200);
+  }
+  function fallback() {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function() { done(true); }, fallback);
+  } else {
+    fallback();
+  }
 }
 
 function setFilter(outcome, btn) {

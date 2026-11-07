@@ -15,13 +15,13 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from pytest_api_core.client.api_response import APIResponse
+from pytest_api_core.client.api_response import APIResponse, body_to_text
 from pytest_api_core.security.redaction import (
     is_sensitive_key,
     redact,
@@ -29,9 +29,13 @@ from pytest_api_core.security.redaction import (
     redact_text,
     redact_url,
     register_secret,
+    scrub_text,
 )
 
 log = logging.getLogger("pytest_api_core.client")
+
+# Max characters of each request/response body kept in the report sentinel.
+_BODY_LIMIT = 2000
 
 # Sentinel distinguishing "caller didn't pass retry=" (build one from the
 # retry_total/retry_backoff_factor/retry_methods primitives) from an explicit
@@ -167,7 +171,27 @@ class APIClient:
             )
 
         start = time.monotonic()
-        response = self._session.request(method, url, **kwargs)
+        try:
+            response = self._session.request(method, url, **kwargs)
+        except requests.RequestException as exc:
+            # Timeouts / connection errors: record the attempt so it still shows
+            # up in the HTML report (as an ERROR banner), then re-raise.
+            elapsed_ms = (time.monotonic() - start) * 1000
+            error = scrub_text(f"{type(exc).__name__}: {exc}")
+            log.warning("✗ %s %s  %s  (%.1f ms)", method, safe_url, error, elapsed_ms)
+            sent = exc.request if isinstance(exc.request, requests.PreparedRequest) else None
+            self._emit_call(
+                method=method,
+                url=safe_url,
+                req_headers=sent.headers if sent is not None else self._session.headers,
+                req_body=body_to_text(sent.body) if sent is not None else "",
+                status=None,
+                elapsed_ms=elapsed_ms,
+                res_headers={},
+                res_body="",
+                error=error,
+            )
+            raise
         elapsed_ms = (time.monotonic() - start) * 1000
 
         api_resp = APIResponse(response, elapsed_ms)
@@ -182,27 +206,53 @@ class APIClient:
         if log.isEnabledFor(logging.DEBUG):
             log.debug("   response body: %s", res_body)
 
-        # Structured sentinel — parsed by HTMLReporter to build request/response banners.
-        # Uses the prepared request's headers (what was actually sent, incl. auth),
-        # with sensitive values masked — tokens are never logged.
-        log.debug(
-            "__API_CALL__ %s",
-            json.dumps(
-                {
-                    "method": method,
-                    "url": safe_url,
-                    "req_headers": redact_headers(response.request.headers),
-                    "req_body": redact_text(api_resp.request_body_text())[:2000],
-                    "status": response.status_code,
-                    "elapsed_ms": round(elapsed_ms, 1),
-                    "res_headers": redact_headers(response.headers),
-                    "res_body": res_body[:2000],
-                },
-                separators=(",", ":"),
-            ),
+        # Uses the prepared request's headers (what was actually sent, incl. auth).
+        self._emit_call(
+            method=method,
+            url=safe_url,
+            req_headers=response.request.headers,
+            req_body=api_resp.request_body_text(),
+            status=response.status_code,
+            elapsed_ms=elapsed_ms,
+            res_headers=response.headers,
+            res_body=res_body,
         )
 
         return api_resp
+
+    @staticmethod
+    def _emit_call(
+        *,
+        method: str,
+        url: str,
+        req_headers: Mapping[str, Any],
+        req_body: str,
+        status: int | None,
+        elapsed_ms: float,
+        res_headers: Mapping[str, Any],
+        res_body: str,
+        error: str | None = None,
+    ) -> None:
+        """Structured sentinel parsed by HTMLReporter to build request/response banners.
+
+        Headers and bodies are redacted here — tokens are never logged. Bodies are
+        redacted before truncating so a cut can't leave a partial secret behind.
+        """
+        safe_req_body = redact_text(req_body)
+        payload: dict[str, Any] = {
+            "method": method,
+            "url": url,
+            "req_headers": redact_headers(req_headers),
+            "req_body": safe_req_body[:_BODY_LIMIT],
+            "req_body_truncated": len(safe_req_body) > _BODY_LIMIT,
+            "status": status,
+            "elapsed_ms": round(elapsed_ms, 1),
+            "res_headers": redact_headers(res_headers),
+            "res_body": redact_text(res_body)[:_BODY_LIMIT],
+        }
+        if error is not None:
+            payload["error"] = error
+        log.debug("__API_CALL__ %s", json.dumps(payload, separators=(",", ":")))
 
     # ------------------------------------------------------------------
     # Context manager support

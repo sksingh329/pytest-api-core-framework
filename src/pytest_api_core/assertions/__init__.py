@@ -9,10 +9,12 @@ from pytest_api_core.assertions.assert_utils import (
     assert_not_equal,
 )
 from pytest_api_core.assertions.response_assertions import ResponseAssertions, assert_that
+from pytest_api_core.assertions.soft import soft_assertions
 
 __all__ = [
     "ResponseAssertions",
     "assert_that",
+    "soft_assertions",
     "assert_equal",
     "assert_not_equal",
     "assert_equal_ignore_case",

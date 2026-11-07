@@ -18,10 +18,13 @@ from __future__ import annotations
 import datetime
 import getpass
 import json
+import math
 import platform
 import re
+import shlex
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
 from jinja2 import Environment, PackageLoader
@@ -32,6 +35,7 @@ _jinja_env = Environment(
     loader=PackageLoader("pytest_api_core", "reporters/templates"),
     autoescape=True,
 )
+# Registered at the bottom of the module, once _to_curl is defined.
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +266,96 @@ def _render_report(
         report_title=title,
         report_header=header,
         run_info=run_info,
+        endpoint_stats=_endpoint_stats(records),
     )
+
+
+_CURL_SKIP_HEADERS = {"content-length"}
+
+
+def _to_curl(call: dict[str, Any]) -> str:
+    """Build a copy-pasteable cURL command from an ``__API_CALL__`` sentinel.
+
+    The sentinel is already redacted, so masked secrets stay ``***REDACTED***``
+    and must be filled in by hand before the command will authenticate.
+    """
+    parts = [
+        "curl",
+        "-X",
+        shlex.quote(str(call.get("method", "GET"))),
+        shlex.quote(str(call.get("url", ""))),
+    ]
+    headers = call.get("req_headers") or {}
+    for name, value in headers.items():
+        if str(name).lower() in _CURL_SKIP_HEADERS:
+            continue
+        parts += ["-H", shlex.quote(f"{name}: {value}")]
+    body = call.get("req_body") or ""
+    if body:
+        parts += ["--data-raw", shlex.quote(str(body))]
+    command = " \\\n  ".join(_pair_flags(parts))
+    if call.get("req_body_truncated"):
+        command += "\n# body truncated in report"
+    return command
+
+
+def _pair_flags(parts: list[str]) -> list[str]:
+    """Keep each ``-H value`` / ``--data-raw value`` on one line of the multi-line command."""
+    lines = [" ".join(parts[:4])]
+    rest = parts[4:]
+    for i in range(0, len(rest), 2):
+        lines.append(" ".join(rest[i : i + 2]))
+    return lines
+
+
+_ID_SEGMENT_RE = re.compile(
+    r"^(\d+|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+)
+
+
+def _endpoint_template(url: str) -> str:
+    """``https://host/users/42?x=1`` → ``/users/{id}`` (numeric and UUID segments collapsed)."""
+    path = urlsplit(url).path or "/"
+    segments = ["{id}" if _ID_SEGMENT_RE.match(seg) else seg for seg in path.split("/")]
+    return "/".join(segments) or "/"
+
+
+def _percentile(sorted_values: list[float], pct: float) -> float:
+    """Nearest-rank percentile of an already-sorted, non-empty list."""
+    rank = max(1, math.ceil(pct / 100 * len(sorted_values)))
+    return sorted_values[rank - 1]
+
+
+def _endpoint_stats(records: list[_TestRecord]) -> list[dict[str, Any]]:
+    """Latency/error summary per ``METHOD /path/{id}``, slowest p95 first."""
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for rec in records:
+        for call in rec.api_calls:
+            key = (str(call.get("method", "?")), _endpoint_template(str(call.get("url", ""))))
+            groups.setdefault(key, []).append(call)
+
+    stats: list[dict[str, Any]] = []
+    for (method, endpoint), calls in groups.items():
+        times = sorted(float(c.get("elapsed_ms") or 0.0) for c in calls)
+        errors = sum(
+            1
+            for c in calls
+            if "error" in c or (isinstance(c.get("status"), int) and c["status"] >= 500)
+        )
+        stats.append(
+            {
+                "method": method,
+                "endpoint": endpoint,
+                "count": len(calls),
+                "min": round(times[0], 1),
+                "p50": round(_percentile(times, 50), 1),
+                "p95": round(_percentile(times, 95), 1),
+                "max": round(times[-1], 1),
+                "errors": errors,
+            }
+        )
+    stats.sort(key=lambda s: s["p95"], reverse=True)
+    return stats
 
 
 def _strip_ansi(text: str) -> str:
@@ -297,3 +390,6 @@ def _donut_svg(counts: dict[str, int], total: int) -> str:
     inner_text = f'<text x="{cx}" y="{cy+5}" text-anchor="middle" font-size="18" font-weight="bold" fill="currentColor">{total}</text>'
     joined = "".join(segments)
     return f'<svg width="140" height="140">{joined}{inner_text}</svg>'
+
+
+_jinja_env.filters["curl"] = _to_curl
