@@ -972,3 +972,94 @@ class TestSoftAssertions:
     def test_hard_mode_unchanged_outside_block(self, resp):
         with pytest.raises(AssertionError, match="Expected status 404"):
             assert_that(resp).status_is(404).json_path("$.name").equals("Bob")
+
+
+# ---------------------------------------------------------------------------
+# Report polish (1.1.1)
+# ---------------------------------------------------------------------------
+
+
+class TestReportPolish:
+    pytestmark = pytest.mark.unit
+
+    def test_soft_assertion_traceback_hides_framework_frames(self, tmp_path):
+        import subprocess
+        import sys
+
+        test_file = tmp_path / "test_soft_tb.py"
+        test_file.write_text(
+            "from pytest_api_core.assertions import assert_equal, soft_assertions\n"
+            "\n"
+            "def test_it():\n"
+            "    with soft_assertions():\n"
+            "        assert_equal('a', 'b')\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", str(test_file), "-p", "no:cacheprovider", "-q"],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+        out = result.stdout
+        assert "1 soft assertion(s) failed" in out
+        assert "with soft_assertions():" in out
+        assert "contextlib" not in out
+        assert "_collector" not in out  # soft.py internals not shown
+
+    def test_soft_assertions_still_nest_and_propagate(self):
+        with pytest.raises(AssertionError, match="2 soft assertion"):
+            with soft_assertions():
+                with soft_assertions():
+                    assert_equal("a", "b")
+                assert_equal("c", "d")
+        with pytest.raises(KeyError):
+            with soft_assertions():
+                assert_equal("a", "b")
+                raise KeyError("boom")
+        with soft_assertions():  # reusable after a failure: no leftover state
+            assert_equal("x", "x")
+
+    def _render(self, assertions, theme="dark"):
+        rec = _TestRecord("t::a")
+        rec.outcome = "passed"
+        rec.assertions = assertions
+        return _render_report(
+            [rec], __import__("datetime").datetime.now(), 0.1, theme, "t", "h", []
+        )
+
+    def test_actual_value_not_red_on_passed_assertion(self):
+        html = self._render(
+            [
+                {"name": "status_is", "passed": True, "expected": 200, "actual": 200},
+                {"name": "status_is", "passed": False, "expected": 201, "actual": 200},
+            ]
+        )
+        assert 'actual=<span class="exp">200</span>' in html
+        assert 'actual=<span class="got">200</span>' in html
+
+    @pytest.mark.parametrize("theme, label", [("dark", "☀️ Light"), ("light", "🌙 Dark")])
+    def test_theme_button_label_names_target_theme(self, theme, label):
+        html = self._render([], theme=theme)
+        assert f'id="themeBtn" onclick="toggleTheme()">{label}</button>' in html
+        assert "getElementById('themeBtn')" in html
+        assert "querySelector('.theme-btn').textContent" not in html
+
+    def test_token_type_is_not_redacted(self):
+        from pytest_api_core.security.redaction import is_sensitive_key, redact
+
+        body = redact({"access_token": "real-secret", "token_type": "Bearer", "expires_in": 60})
+        assert body == {"access_token": REDACTED, "token_type": "Bearer", "expires_in": 60}
+        assert not is_sensitive_key("TOKEN-TYPE")
+        for key in ("x-token-type", "refresh_token", "id_token", "token"):
+            assert is_sensitive_key(key), key
+        text = scrub_text('{"token_type": "Bearer", "access_token": "abc.def"}')
+        assert '"token_type": "Bearer"' in text and "abc.def" not in text
+
+    def test_add_sensitive_keys_overrides_safe_list(self):
+        from pytest_api_core.security import redaction
+
+        try:
+            redaction.add_sensitive_keys("token_type")
+            assert redaction.is_sensitive_key("token_type")
+        finally:
+            redaction._extra_keys.discard("tokentype")

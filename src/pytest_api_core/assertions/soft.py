@@ -21,9 +21,8 @@ If the block raises some other exception, that exception propagates unchanged.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from contextvars import ContextVar
-from typing import Iterator
+from contextvars import ContextVar, Token
+from types import TracebackType
 
 _collector: ContextVar[list[str] | None] = ContextVar("pytest_api_core_soft", default=None)
 
@@ -48,17 +47,33 @@ def _format(failures: list[str]) -> str:
     return "\n".join(lines)
 
 
-@contextmanager
-def soft_assertions() -> Iterator[None]:
-    """Collect assertion failures in the block and raise one combined AssertionError."""
-    if _collector.get() is not None:
-        yield  # nested: the outer block collects and raises
-        return
-    failures: list[str] = []
-    token = _collector.set(failures)
-    try:
-        yield
-    finally:
-        _collector.reset(token)
-    if failures:
-        raise AssertionError(_format(failures))
+class soft_assertions:  # noqa: N801 — used like a function: ``with soft_assertions():``
+    """Collect assertion failures in the block and raise one combined AssertionError.
+
+    A class rather than ``@contextmanager`` so the raising frame can be hidden
+    from pytest tracebacks: the failure then points at the test's ``with`` line
+    instead of framework / ``contextlib`` internals.
+    """
+
+    def __init__(self) -> None:
+        self._failures: list[str] = []
+        self._token: Token[list[str] | None] | None = None
+
+    def __enter__(self) -> None:
+        if _collector.get() is None:  # nested blocks report through the outermost one
+            self._failures = []
+            self._token = _collector.set(self._failures)
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:  # None: never swallows an exception raised inside the block
+        __tracebackhide__ = True  # noqa: F841 — read by pytest
+        if self._token is None:
+            return
+        _collector.reset(self._token)
+        self._token = None
+        if exc_type is None and self._failures:
+            raise AssertionError(_format(self._failures))

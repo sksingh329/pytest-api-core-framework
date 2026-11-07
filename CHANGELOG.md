@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- A failing `soft_assertions()` block no longer shows the framework's own code
+  (`soft.py`, `contextlib`) in the pytest traceback / HTML report — the failure
+  points at the test's `with soft_assertions():` line followed by the combined message
+- HTML report: `actual=` on a passed assertion row is shown in green, not in the
+  failure red
+- HTML report: the theme toggle's label now names the theme it switches to, and
+  toggling no longer overwrites the "Run Info" button's label
+- `token_type` (the OAuth 2.0 token-response field, e.g. `"Bearer"`) is no longer
+  masked as if it were a secret; other `*token*` keys are still masked, and
+  `add_sensitive_keys("token_type")` restores masking if needed
+
 ## [1.1.0] - 2026-11-08
 
 ### Added

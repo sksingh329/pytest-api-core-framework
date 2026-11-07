@@ -46,6 +46,12 @@ _SENSITIVE_FRAGMENTS: tuple[str, ...] = (
     "privatekey",
 )
 
+# Exact (normalised) keys that match a fragment above but never hold a secret.
+# Kept deliberately tiny — a false "safe" leaks, a false "sensitive" only hides.
+#   token_type — OAuth 2.0 token response field, e.g. "Bearer" (RFC 6749 §5.1)
+# add_sensitive_keys() still wins over this list.
+_SAFE_KEYS: frozenset[str] = frozenset({"tokentype"})
+
 # Registered secrets shorter than this are ignored — masking "1" or "ab"
 # everywhere would mangle unrelated output.
 _MIN_SECRET_LEN = 4
@@ -91,7 +97,11 @@ def is_sensitive_key(key: object) -> bool:
     if not isinstance(key, str):
         return False
     norm = _normalise(key)
-    return norm in _extra_keys or any(f in norm for f in _SENSITIVE_FRAGMENTS)
+    if norm in _extra_keys:
+        return True
+    if norm in _SAFE_KEYS:
+        return False
+    return any(f in norm for f in _SENSITIVE_FRAGMENTS)
 
 
 def is_sensitive_path(path: str | None) -> bool:

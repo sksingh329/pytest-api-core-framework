@@ -199,7 +199,8 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
   </div>
   <div class="header-actions">
     <button class="theme-btn" onclick="toggleInfo()">⚙ Run Info</button>
-    <button class="theme-btn" onclick="toggleTheme()">🌙 Dark</button>
+    {# Label names the theme the button switches *to*. #}
+    <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">{% if theme == 'dark' %}☀️ Light{% else %}🌙 Dark{% endif %}</button>
     <div class="info-panel" id="infoPanel">
       <table class="info-table">
         {% for label, value in run_info %}
@@ -450,7 +451,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                     {% endif %}
                     {% if a.expected is defined and a.actual is defined %}
                       expected=<span class="exp">{{ a.expected }}</span>
-                      &nbsp; actual=<span class="got {% if not a.passed %}got{% endif %}">{{ a.actual }}</span>
+                      &nbsp; actual=<span class="{% if a.passed %}exp{% else %}got{% endif %}">{{ a.actual }}</span>
                     {% elif a.actual is defined %}
                       actual=<span class="{% if a.passed %}exp{% else %}got{% endif %}">{{ a.actual }}</span>
                     {% elif a.expected is defined %}
@@ -637,7 +638,7 @@ function toggleTheme() {
   var html = document.documentElement;
   var isDark = html.getAttribute('data-theme') === 'dark';
   html.setAttribute('data-theme', isDark ? 'light' : 'dark');
-  document.querySelector('.theme-btn').textContent = isDark ? '🌙 Dark' : '☀️ Light';
+  document.getElementById('themeBtn').textContent = isDark ? '🌙 Dark' : '☀️ Light';
 }
 </script>
 </body>
