@@ -26,6 +26,25 @@
 
 ---
 
+## Report preview
+
+One self-contained HTML file per run (`--api-html-report=reports/report_{timestamp}.html`).
+Browse real ones from this repo's CI on the [live reports dashboard](https://githubreports.apicore.subodhsingh.in/).
+
+**Run summary and per-endpoint latency**
+
+![Report overview: pass/fail summary, endpoint performance table with p50/p95 latency, and the filterable results table](https://raw.githubusercontent.com/sksingh329/pytest-api-core-framework/develop/docs/images/report-overview.png)
+
+**Every assertion as its own row** — here inside `soft_assertions()`, so all three failures are reported in one run
+
+![Expanded failed test showing a PATCH request banner and assertion rows with path, expected and actual values](https://raw.githubusercontent.com/sksingh329/pytest-api-core-framework/develop/docs/images/report-assertions.png)
+
+**Request details, redacted secrets, Copy cURL, and timeouts shown as ERROR**
+
+![Expanded tests showing a token response with the access token redacted, and a request that timed out shown with a red ERROR banner](https://raw.githubusercontent.com/sksingh329/pytest-api-core-framework/develop/docs/images/report-requests.png)
+
+---
+
 ## Installation
 
 ```bash
