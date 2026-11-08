@@ -1,5 +1,9 @@
 # pytest-api-core — Setup Guide
 
+> **Tip:** For a complete, working reference of everything in this guide, see the
+> [pytest-api-core-template](https://github.com/sksingh329/pytest-api-core-template) project.
+> You can clone it as a starting point instead of setting things up by hand.
+
 ## 1. Create the project
 
 ```bash

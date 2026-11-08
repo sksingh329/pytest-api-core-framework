@@ -81,6 +81,10 @@ pytest tests/ --api-env=staging
 
 For full setup instructions — including `pytest.ini`, `config/settings.py`, `conftest.py` auth overrides, and CI integration — see **[docs/QUICKSTART.md](docs/QUICKSTART.md)**.
 
+### Template project
+
+Prefer to start from a working example? **[pytest-api-core-template](https://github.com/sksingh329/pytest-api-core-template)** is a ready-to-use consumer project showing the recommended layout — environment settings, `conftest.py` overrides, sample tests, and report configuration. Clone it (or click **Use this template** on GitHub) and point it at your API.
+
 ---
 
 ## Configuration
