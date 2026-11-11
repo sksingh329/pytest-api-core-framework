@@ -91,6 +91,14 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         metavar="METHOD,METHOD,...",
         help="Comma-separated HTTP methods eligible for retry (default: GET,HEAD,OPTIONS)",
     )
+    group.addoption(
+        "--api-retry-statuses",
+        action="store",
+        default=None,
+        metavar="CODE,CODE,...",
+        help="Comma-separated response status codes that trigger a retry "
+        "(default: 500,502,503,504)",
+    )
     # Register ini options to suppress "Unknown config option" warnings
     parser.addini("api_env", help="Default environment (e.g. dev, staging, prod)", default="dev")
     parser.addini("api_html_report", help="Output path for the custom HTML report", default=None)

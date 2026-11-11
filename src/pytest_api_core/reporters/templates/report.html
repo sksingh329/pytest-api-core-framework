@@ -8,7 +8,7 @@
 :root {
   --bg: #f8fafc; --surface: #ffffff; --border: #e2e8f0;
   --text: #1e293b; --text-muted: #64748b;
-  --pass: #22c55e; --fail: #ef4444; --error: #f97316; --skip: #94a3b8;
+  --pass: #22c55e; --fail: #ef4444; --error: #f97316; --skip: #94a3b8; --retry: #ca8a04;
   --code-bg: #0f172a; --code-text: #e2e8f0;
   --shadow: 0 1px 3px rgba(0,0,0,.1);
   --method-get: #3b82f6; --method-post: #22c55e; --method-put: #f59e0b;
@@ -46,6 +46,7 @@ header small { color: var(--text-muted); margin-left: 10px; font-weight: 400; fo
 .stat-card.fail .stat-value { color: var(--fail); }
 .stat-card.error .stat-value { color: var(--error); }
 .stat-card.skip .stat-value { color: var(--skip); }
+.stat-card.retry .stat-value { color: var(--retry); }
 
 /* ── Controls ───────────────────────────────────────────────────────── */
 .controls { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -132,6 +133,10 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align:
 .perf-card td.num, .perf-card th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .perf-endpoint { font-family: "SF Mono", "Fira Code", monospace; font-size: 12px; overflow-wrap: anywhere; }
 .perf-err { color: var(--fail); font-weight: 700; }
+.perf-retry { color: var(--retry); font-weight: 700; }
+.retry-chip { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;
+              background: #713f12; color: #fde68a; white-space: nowrap; }
+.attempt-final td { font-weight: 700; }
 .elapsed-chip { font-size: 11px; color: #94a3b8; white-space: nowrap; }
 .http-chevron { font-size: 10px; color: #64748b; transition: transform .2s; }
 .http-chevron.open { transform: rotate(90deg); }
@@ -236,6 +241,11 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
       <div class="stat-card skip">
         <div class="stat-value">{{ skipped }}</div><div class="stat-label">Skipped</div>
       </div>
+      {% if retried_calls %}
+      <div class="stat-card retry" title="API calls that needed at least one retry">
+        <div class="stat-value">{{ retried_calls }}</div><div class="stat-label">Retried calls</div>
+      </div>
+      {% endif %}
     </div>
   </div>
 
@@ -253,6 +263,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <th class="num">p95</th>
           <th class="num">Max</th>
           <th class="num">Errors</th>
+          <th class="num" title="Calls that needed at least one retry">Retried</th>
         </tr>
       </thead>
       <tbody>
@@ -267,6 +278,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <td class="num">{{ s.p95 }} ms</td>
           <td class="num">{{ s.max }} ms</td>
           <td class="num {% if s.errors %}perf-err{% endif %}">{{ s.errors }}</td>
+          <td class="num {% if s.retried %}perf-retry{% endif %}">{{ s.retried }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -345,6 +357,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             {% elif sc.startswith('4') %}{% set sc_cls = "status-4xx" %}
             {% else %}{% set sc_cls = "status-5xx" %}{% endif %}
             {% set is_err = call.error is defined %}
+            {% set retries = call.retries if call.retries is defined else [] %}
             <div class="http-banner">
               <div class="http-headline" onclick="toggleHttp('{{ cid }}', this)">
                 <span class="method-badge method-{{ call.method }}">{{ call.method }}</span>
@@ -352,6 +365,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   {% if is_err %}<span class="http-error-line">{{ call.error }}</span>{% endif %}
                 </span>
                 <span class="status-chip {{ sc_cls }}">{% if is_err %}ERROR{% else %}{{ call.status }}{% endif %}</span>
+                {% if retries %}
+                <span class="retry-chip" title="{% for r in retries %}attempt {{ r.attempt }}: {{ r.error if r.error is defined else r.status }}; {% endfor %}final: {{ 'ERROR' if is_err else call.status }}">↻ {{ retries | length + 1 }} attempts</span>
+                {% endif %}
                 <span class="elapsed-chip">{{ call.elapsed_ms }} ms</span>
                 <button class="curl-btn" type="button"
                         onclick="event.stopPropagation(); copyCurl('curl-{{ cid }}', this)">Copy cURL</button>
@@ -367,6 +383,9 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   <div class="http-tab" onclick="switchTab(this, 'req-b-{{ cid }}')">Req Body</div>
                   <div class="http-tab" onclick="switchTab(this, 'res-h-{{ cid }}')">Res Headers</div>
                   <div class="http-tab" onclick="switchTab(this, 'res-b-{{ cid }}')">Res Body</div>
+                  {% if retries %}
+                  <div class="http-tab" onclick="switchTab(this, 'att-{{ cid }}')">Attempts ({{ retries | length + 1 }})</div>
+                  {% endif %}
                 </div>
 
                 {% if is_err %}
@@ -404,6 +423,22 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 <div id="res-b-{{ cid }}" class="http-tab-content">
                   <pre class="http-body-pre">{{ call.res_body if call.res_body else "—" }}</pre>
                 </div>
+
+                {% if retries %}
+                <div id="att-{{ cid }}" class="http-tab-content">
+                  <table class="http-kv-table">
+                    <tr><th>Attempt</th><th>Result</th><th>Ended at</th></tr>
+                    {% for r in retries %}
+                    <tr><td>#{{ r.attempt }}</td>
+                        <td>{{ r.error if r.error is defined else r.status }} — retried</td>
+                        <td>+{{ r.at_ms }} ms</td></tr>
+                    {% endfor %}
+                    <tr class="attempt-final"><td>#{{ retries | length + 1 }}</td>
+                        <td>{{ call.error if is_err else call.status }} — final</td>
+                        <td>+{{ call.elapsed_ms }} ms</td></tr>
+                  </table>
+                </div>
+                {% endif %}
               </div>
             </div>
             {% endfor %}

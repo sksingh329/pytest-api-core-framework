@@ -15,12 +15,13 @@
 - **Auth strategies** — Bearer token, Basic, API Key (header/query), OAuth2 client credentials
   (need something else, like an OAuth2 refresh-token flow or signed requests? subclass `AuthBase` — see [docs/QUICKSTART.md](docs/QUICKSTART.md#custom-auth-handlers))
 - **Standalone assertion helpers** — `assert_equal`, `assert_contains`, `assert_matches`, `assert_matches_schema`, etc. for values outside an `APIResponse` — see [docs/QUICKSTART.md](docs/QUICKSTART.md#standalone-assertion-helpers)
-- **Configurable retry policy** — max attempts, backoff factor, and retryable methods, overridable per environment (see below)
+- **Configurable retry policy** — max attempts, backoff factor, retryable methods and status codes, overridable per environment; every retried attempt is shown in the report (see below)
 - **Environment config** — Python `settings.py` classes + `.env` file + env var overrides
 - **Soft assertions** — `with soft_assertions():` runs every check and fails once with all the failures listed — see [docs/QUICKSTART.md](docs/QUICKSTART.md#soft-assertions)
 - **Custom HTML report** — self-contained file with charts, filterable table, and request/response details,
   a "Copy cURL" button per request (secrets stay redacted), an ERROR banner for timeouts / connection errors,
-  and a per-endpoint latency table (min/p50/p95/max)
+  a "↻ N attempts" chip and Attempts tab for calls that were retried, and a per-endpoint latency table
+  (min/p50/p95/max, errors, retried)
 - **Secret redaction** — tokens, passwords, API keys and cookies are masked in logs, assertion messages, and the HTML report (see [Secret redaction](#secret-redaction))
 - **Auto-registered fixtures** — zero boilerplate in consuming projects
 
@@ -42,6 +43,10 @@ Browse real ones from this repo's CI on the [live reports dashboard](https://git
 **Request details, redacted secrets, Copy cURL, and timeouts shown as ERROR**
 
 ![Expanded tests showing a token response with the access token redacted, and a request that timed out shown with a red ERROR banner](https://raw.githubusercontent.com/sksingh329/pytest-api-core-framework/develop/docs/images/report-requests.png)
+
+**Retries are never hidden** — a call that returned 503 and then passed on retry is flagged with "↻ 2 attempts", the Attempts tab lists every try, and the summary and endpoint table count retried calls so flaky endpoints stand out
+
+![Report showing a Retried calls count, a Retried column in the endpoint table, and an expanded GET request with a 2 attempts chip and an Attempts tab listing 503 retried then 200 final](https://raw.githubusercontent.com/sksingh329/pytest-api-core-framework/develop/docs/images/report-retries.png)
 
 ---
 
@@ -101,7 +106,7 @@ Prefer to start from a working example? **[pytest-api-core-template](https://git
 ### Retry policy
 
 `APIClient` retries idempotent requests (`GET`, `HEAD`, `OPTIONS`) on `500/502/503/504`
-responses using `urllib3.Retry`. All three knobs follow the same env var → CLI flag →
+responses and on connection errors, using `urllib3.Retry`. All four knobs follow the same env var → CLI flag →
 `settings_module` → built-in default precedence as `base_url`:
 
 | Setting | `settings_module` attribute | CLI flag | Env var | Default |
@@ -109,8 +114,30 @@ responses using `urllib3.Retry`. All three knobs follow the same env var → CLI
 | Max retry attempts | `api_retry_total` | `--api-retry-total` | `API_RETRY_TOTAL` | `3` |
 | Backoff factor | `api_retry_backoff_factor` | `--api-retry-backoff-factor` | `API_RETRY_BACKOFF_FACTOR` | `0.3` |
 | Retryable methods | `api_retry_methods` | `--api-retry-methods` (comma-separated) | `API_RETRY_METHODS` (comma-separated) | `GET,HEAD,OPTIONS` |
+| Retryable status codes | `api_retry_statuses` | `--api-retry-statuses` (comma-separated) | `API_RETRY_STATUSES` (comma-separated) | `500,502,503,504` |
 
 Backoff factor `0.3` produces sleeps of `0s, 0.3s, 0.6s, 1.2s, ...` between attempts.
+
+**When is a request retried?**
+
+- A response is retried only when **both** its method is in `api_retry_methods` **and** its
+  status is in `api_retry_statuses`.
+- Connection errors (the request never reached the server) are retried for any method, up to
+  `api_retry_total`. Read timeouts are retried only for methods in `api_retry_methods`.
+- `429` is not retried by default. Add it to `api_retry_statuses` to retry rate-limited calls;
+  urllib3 waits for the `Retry-After` header on `413`/`429`/`503`.
+- Only add `POST`/`PATCH` to `api_retry_methods` if the API makes repeats safe (e.g. an
+  `Idempotency-Key` header). Otherwise a retry can create duplicate records.
+- Avoid adding client errors such as `400`/`404` to `api_retry_statuses`. Retrying them hides
+  real bugs instead of reporting them.
+
+**Retries are never hidden.** A call that fails and then passes on a retry is still reported:
+
+- each retried attempt logs a WARNING line, e.g. `↻ GET https://…/orders  503  — attempt 1 failed, retrying`
+- the call's banner in the HTML report shows a `↻ 2 attempts` chip, and an **Attempts** tab lists
+  each attempt's status (or connection error) and when it ended
+- the summary shows a **Retried calls** count and the endpoint table a **Retried** column, so
+  flaky endpoints stand out even when every test passed
 
 Example — a flakier staging environment gets more retries and a longer backoff:
 
@@ -120,13 +147,47 @@ class StagingSettings(BaseSettings):
     base_url = "https://api.staging.mycompany.com"
     api_retry_total = 5
     api_retry_backoff_factor = 1.0
+    api_retry_statuses = [429, 502, 503, 504]   # also retry rate limiting
 ```
 
 Or per-run, without touching code:
 
 ```bash
 pytest tests/ --api-env=staging --api-retry-total=5 --api-retry-backoff-factor=1.0
+pytest tests/ --api-retry-methods=GET,HEAD,OPTIONS,PUT --api-retry-statuses=429,502,503,504
 ```
+
+Or in CI, with env vars (these override everything else):
+
+```bash
+export API_RETRY_METHODS=GET,HEAD,OPTIONS,PUT
+export API_RETRY_STATUSES=429,502,503,504
+```
+
+**Different policy for one group of endpoints.** The policy applies to a whole client, not
+to single requests. If some endpoints need different rules, build a second client in your
+`conftest.py`:
+
+```python
+import pytest
+from pytest_api_core.client.api_client import APIClient
+
+@pytest.fixture(scope="session")
+def payments_client(api_config, auth_provider):
+    client = APIClient(
+        base_url=api_config["base_url"],
+        auth=auth_provider,
+        retry_methods=["GET", "POST"],  # POST is safe here: the API honours Idempotency-Key
+        retry_statuses=[503],
+        retry_total=2,
+    )
+    yield client
+    client.close()
+```
+
+For full control, pass a urllib3 policy as `retry=Retry(...)`. A plain `Retry` is converted
+automatically, so its attempts still appear in the report. To keep that for a `Retry` subclass,
+subclass `pytest_api_core.client.api_client.RecordingRetry` instead.
 
 To disable retries entirely, pass `retry=None` directly when constructing an
 `APIClient` yourself (not available as a config option, since "no retries" isn't

@@ -6,8 +6,8 @@ Generates a single self-contained HTML file from a Jinja2 template with:
   - SVG donut chart
   - Filterable, sortable results table
   - Per-test expandable panels:
-      • HTTP call banners (method badge, URL, status, elapsed) with
-        tabbed Request Headers / Req Body / Res Headers / Res Body
+      • HTTP call banners (method badge, URL, status, elapsed, retry count) with
+        tabbed Request Headers / Req Body / Res Headers / Res Body / Attempts
       • Assertion result rows (✅/❌ with expected vs actual)
       • Captured logs, stdout, failure traceback
   - Dark/light mode toggle
@@ -267,6 +267,7 @@ def _render_report(
         report_header=header,
         run_info=run_info,
         endpoint_stats=_endpoint_stats(records),
+        retried_calls=sum(1 for rec in records for call in rec.api_calls if call.get("retries")),
     )
 
 
@@ -352,6 +353,7 @@ def _endpoint_stats(records: list[_TestRecord]) -> list[dict[str, Any]]:
                 "p95": round(_percentile(times, 95), 1),
                 "max": round(times[-1], 1),
                 "errors": errors,
+                "retried": sum(1 for c in calls if c.get("retries")),
             }
         )
     stats.sort(key=lambda s: s["p95"], reverse=True)

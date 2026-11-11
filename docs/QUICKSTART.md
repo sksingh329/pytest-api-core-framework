@@ -71,6 +71,7 @@ class StagingSettings(DevSettings):
     timeout  = 60
     api_retry_total = 5              # staging is flakier — retry more (default: 3)
     api_retry_backoff_factor = 1.0   # and wait longer between attempts (default: 0.3)
+    api_retry_statuses = [429, 502, 503, 504]  # also retry rate limiting (default: 500,502,503,504)
 
 
 class ProdSettings(BaseSettings):
@@ -357,6 +358,9 @@ pytest tests/ --api-base-url=https://api.staging.mycompany.com
 
 # Override retry policy (e.g. a flakier environment)
 pytest tests/ --api-retry-total=5 --api-retry-backoff-factor=1.0
+pytest tests/ --api-retry-methods=GET,HEAD,OPTIONS,PUT --api-retry-statuses=429,502,503,504
+# A request is retried only if its method AND status are both in these lists —
+# see "Retry policy" in the README for the full rules
 
 # Verbose debug output (shows full request/response)
 pytest tests/ --api-log-level=DEBUG -s
@@ -383,6 +387,7 @@ Shell env vars take highest priority and always override `settings.py` values.
 | `API_RETRY_TOTAL` | Overrides max retry attempts (default: `3`) |
 | `API_RETRY_BACKOFF_FACTOR` | Overrides retry backoff factor (default: `0.3`) |
 | `API_RETRY_METHODS` | Overrides retryable HTTP methods, comma-separated (default: `GET,HEAD,OPTIONS`) |
+| `API_RETRY_STATUSES` | Overrides retryable response status codes, comma-separated (default: `500,502,503,504`) |
 | `BEARER_TOKEN` | Read by the `conftest.py` override above |
 | `API_TOKEN` | Read by the built-in `api_client` fixture (if not overriding) |
 | `API_USERNAME` / `API_PASSWORD` | Read by `api_basic_auth` fixture |
