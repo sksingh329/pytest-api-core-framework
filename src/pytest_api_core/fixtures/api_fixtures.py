@@ -23,8 +23,8 @@ from typing import Any, Generator
 import pytest
 
 from pytest_api_core.auth.auth_handlers import APIKeyAuth, BasicAuth, BearerAuth
-from pytest_api_core.client.api_client import APIClient
-from pytest_api_core.config.config_manager import ConfigManager
+from pytest_api_core.client.api_client import DEFAULT_RETRY_STATUSES, APIClient
+from pytest_api_core.config.config_manager import ConfigManager, parse_status_list
 
 # ---------------------------------------------------------------------------
 # Config fixture
@@ -41,7 +41,7 @@ def api_config(request: pytest.FixtureRequest) -> dict[str, Any]:
     Override via env-var: ``API_ENV=staging``
 
     Retry policy (``api_retry_total``, ``api_retry_backoff_factor``,
-    ``api_retry_methods``) follows the same precedence — env var >
+    ``api_retry_methods``, ``api_retry_statuses``) follows the same precedence — env var >
     ``--api-retry-*`` CLI flag > settings class attribute > built-in default.
     """
     env: str | None = (
@@ -57,6 +57,9 @@ def api_config(request: pytest.FixtureRequest) -> dict[str, Any]:
     retry_methods_override: str | None = request.config.getoption(
         "--api-retry-methods", default=None
     )
+    retry_statuses_override: str | None = request.config.getoption(
+        "--api-retry-statuses", default=None
+    )
     settings_module: str | None = request.config.getini("api_settings_module") or None
 
     cli_overrides: dict[str, Any] = {}
@@ -70,6 +73,8 @@ def api_config(request: pytest.FixtureRequest) -> dict[str, Any]:
         cli_overrides["api_retry_methods"] = [
             m.strip().upper() for m in retry_methods_override.split(",") if m.strip()
         ]
+    if retry_statuses_override:
+        cli_overrides["api_retry_statuses"] = parse_status_list(retry_statuses_override)
 
     manager = ConfigManager(
         env=env,
@@ -127,6 +132,7 @@ def api_client(api_config: dict[str, Any], auth_provider: Any) -> Generator[APIC
         retry_total=api_config.get("api_retry_total", 3),
         retry_backoff_factor=api_config.get("api_retry_backoff_factor", 0.3),
         retry_methods=api_config.get("api_retry_methods", ("GET", "HEAD", "OPTIONS")),
+        retry_statuses=api_config.get("api_retry_statuses", DEFAULT_RETRY_STATUSES),
     )
     yield client
     client.close()

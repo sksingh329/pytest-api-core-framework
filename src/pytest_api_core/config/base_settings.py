@@ -17,6 +17,7 @@ Example
         api_retry_total = 5              # retry up to 5 times (default: 3)
         api_retry_backoff_factor = 0.5   # 0s, 0.5s, 1s, 2s, ... (default: 0.3)
         api_retry_methods = ["GET", "HEAD", "OPTIONS", "PUT"]  # default: GET,HEAD,OPTIONS
+        api_retry_statuses = [429, 502, 503, 504]  # default: 500,502,503,504
 
     class StagingSettings(DevSettings):      # inherit defaults, override what changes
         base_url = "https://api.staging.mycompany.com"
@@ -53,6 +54,9 @@ class BaseSettings:
     api_retry_total: int = 3
     api_retry_backoff_factor: float = 0.3
     api_retry_methods: list[str] = ["GET", "HEAD", "OPTIONS"]
+    # Response status codes that trigger a retry. Add 429 to retry rate-limited
+    # calls (urllib3 honours the Retry-After header on 413/429/503).
+    api_retry_statuses: list[int] = [500, 502, 503, 504]
 
     @classmethod
     def as_dict(cls) -> dict[str, Any]:

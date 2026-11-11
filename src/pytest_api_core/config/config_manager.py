@@ -34,6 +34,7 @@ _DEFAULTS: dict[str, Any] = {
     "api_retry_total": 3,
     "api_retry_backoff_factor": 0.3,
     "api_retry_methods": ["GET", "HEAD", "OPTIONS"],
+    "api_retry_statuses": [500, 502, 503, 504],
 }
 
 # Maps env-var names → config keys
@@ -45,6 +46,7 @@ _ENV_VAR_MAP: dict[str, str] = {
     "API_RETRY_TOTAL": "api_retry_total",
     "API_RETRY_BACKOFF_FACTOR": "api_retry_backoff_factor",
     "API_RETRY_METHODS": "api_retry_methods",
+    "API_RETRY_STATUSES": "api_retry_statuses",
 }
 
 
@@ -152,12 +154,24 @@ class ConfigManager:
             return float(raw)
         if key == "api_retry_methods":
             return [m.strip().upper() for m in raw.split(",") if m.strip()]
+        if key == "api_retry_statuses":
+            return parse_status_list(raw)
         return raw
 
 
 # ------------------------------------------------------------------
 # Utility
 # ------------------------------------------------------------------
+
+
+def parse_status_list(raw: str) -> list[int]:
+    """``"429, 503,504"`` → ``[429, 503, 504]``; raises ValueError on non-integers."""
+    try:
+        return [int(s) for s in (part.strip() for part in raw.split(",")) if s]
+    except ValueError:
+        raise ValueError(
+            f"Retry status codes must be comma-separated integers, got {raw!r}"
+        ) from None
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> None:

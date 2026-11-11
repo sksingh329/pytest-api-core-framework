@@ -24,7 +24,7 @@ from pytest_api_core.assertions import (
     soft_assertions,
 )
 from pytest_api_core.auth.auth_handlers import APIKeyAuth, BearerAuth
-from pytest_api_core.client.api_client import APIClient
+from pytest_api_core.client.api_client import APIClient, RecordingRetry
 from pytest_api_core.config.config_manager import ConfigManager
 from pytest_api_core.reporters.html_reporter import (
     _endpoint_stats,
@@ -106,7 +106,9 @@ class TestAPIClient:
             retry_total=1,  # should be ignored since retry= was passed explicitly
         )
         retry = c._session.get_adapter("https://api.example.com").max_retries
-        assert retry is custom
+        # A plain Retry is converted to RecordingRetry so attempts reach the report,
+        # but the caller's policy is kept as-is.
+        assert isinstance(retry, RecordingRetry)
         assert retry.total == 9
 
 
@@ -1063,3 +1065,233 @@ class TestReportPolish:
             assert redaction.is_sensitive_key("token_type")
         finally:
             redaction._extra_keys.discard("tokentype")
+
+
+# ---------------------------------------------------------------------------
+# Retry visibility + configurable retry statuses
+# ---------------------------------------------------------------------------
+
+_FLAKY = "https://api.example.com/flaky"
+
+
+def _report_html(calls):
+    rec = _TestRecord("tests/test_x.py::test_flaky")
+    rec.outcome = "passed"
+    rec.api_calls = calls
+    return _render_report([rec], __import__("datetime").datetime.now(), 1.0, "dark", "t", "h", [])
+
+
+class TestRetryVisibility:
+    pytestmark = pytest.mark.unit
+
+    @rsps_lib.activate(registry=rsps_lib.registries.OrderedRegistry)
+    def test_call_that_passes_on_retry_is_shown_in_report(self, caplog):
+        """A 503 -> 200 call must not look like a single clean 200."""
+        rsps_lib.get(_FLAKY, status=503, json={"error": "unavailable"})
+        rsps_lib.get(_FLAKY, status=200, json={"ok": True})
+        client = APIClient("https://api.example.com", retry_backoff_factor=0)
+
+        with caplog.at_level("DEBUG", logger="pytest_api_core.client"):
+            resp = client.get("/flaky")
+
+        assert resp.status_code == 200
+        assert len(rsps_lib.calls) == 2
+
+        call = _sentinels(caplog, "__API_CALL__")[0]
+        assert call["status"] == 200
+        assert [(r["attempt"], r["status"]) for r in call["retries"]] == [(1, 503)]
+        assert 0 <= call["retries"][0]["at_ms"] <= call["elapsed_ms"]
+
+        # Raw logs: one WARNING per retried attempt, in order, before the final line.
+        messages = [r.getMessage() for r in caplog.records if r.name == "pytest_api_core.client"]
+        warn = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert len(warn) == 1
+        assert warn[0].getMessage() == f"↻ GET {_FLAKY}  503  — attempt 1 failed, retrying"
+        assert messages.index(warn[0].getMessage()) < next(
+            i for i, m in enumerate(messages) if m.startswith("← GET")
+        )
+
+        html = _report_html([call])
+        assert "↻ 2 attempts" in html
+        assert "Attempts (2)" in html
+        assert "503 — retried" in html and "200 — final" in html
+        assert "Retried calls" in html
+
+    @rsps_lib.activate
+    def test_call_without_retry_has_no_retry_markup(self, caplog):
+        rsps_lib.get(_FLAKY, status=200, json={})
+        client = APIClient("https://api.example.com", retry_backoff_factor=0)
+        with caplog.at_level("DEBUG", logger="pytest_api_core.client"):
+            client.get("/flaky")
+        call = _sentinels(caplog, "__API_CALL__")[0]
+        assert "retries" not in call
+        html = _report_html([call])
+        assert "retry-chip" not in html.split("</style>", 1)[1]
+        assert "Retried calls" not in html
+
+    @rsps_lib.activate(registry=rsps_lib.registries.OrderedRegistry)
+    def test_exhausted_retries_return_final_status_with_all_attempts(self, caplog):
+        for _ in range(3):
+            rsps_lib.get(_FLAKY, status=502)
+        client = APIClient("https://api.example.com", retry_total=2, retry_backoff_factor=0)
+        with caplog.at_level("DEBUG", logger="pytest_api_core.client"):
+            resp = client.get("/flaky")
+        assert resp.status_code == 502
+        call = _sentinels(caplog, "__API_CALL__")[0]
+        assert [r["status"] for r in call["retries"]] == [502, 502]
+        assert "502 — final" in _report_html([call])
+
+    def test_connection_error_attempt_is_recorded_and_scrubbed(self):
+        # `responses` raises connection errors above urllib3, so drive increment() directly.
+        from urllib3.exceptions import NewConnectionError
+
+        from pytest_api_core.client import api_client as mod
+
+        attempts: list = []
+        token = mod._retry_attempts.set(attempts)
+        try:
+            RecordingRetry(total=2).increment(
+                "GET", "/flaky", error=NewConnectionError(None, "refused token=abc123secret")
+            )
+        finally:
+            mod._retry_attempts.reset(token)
+        (entry,) = attempts
+        assert entry["status"] is None
+        assert entry["error"].startswith("NewConnectionError")
+        assert "abc123secret" not in entry["error"]
+
+    def test_real_urllib3_retry_against_local_server(self, caplog):
+        """No mocks: a real HTTP server returns 503 then 200 over localhost."""
+        import http.server
+        import threading
+
+        hits = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802
+                hits.append(self.path)
+                status = 503 if len(hits) == 1 else 200
+                self.send_response(status)
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"{}")
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            client = APIClient(f"http://127.0.0.1:{server.server_port}", retry_backoff_factor=0)
+            with caplog.at_level("DEBUG", logger="pytest_api_core.client"):
+                assert client.get("/flaky").status_code == 200
+        finally:
+            server.shutdown()
+            server.server_close()
+        assert len(hits) == 2
+        call = _sentinels(caplog, "__API_CALL__")[0]
+        assert [r["status"] for r in call["retries"]] == [503]
+
+    @rsps_lib.activate(registry=rsps_lib.registries.OrderedRegistry)
+    def test_429_not_retried_by_default(self, caplog):
+        rsps_lib.get(_FLAKY, status=429)
+        rsps_lib.get(_FLAKY, status=200)
+        client = APIClient("https://api.example.com", retry_backoff_factor=0)
+        with caplog.at_level("DEBUG", logger="pytest_api_core.client"):
+            resp = client.get("/flaky")
+        assert resp.status_code == 429
+        assert len(rsps_lib.calls) == 1
+        assert "retries" not in _sentinels(caplog, "__API_CALL__")[0]
+
+    @rsps_lib.activate(registry=rsps_lib.registries.OrderedRegistry)
+    def test_custom_retry_statuses_retry_429_but_not_500(self, caplog):
+        rsps_lib.get(_FLAKY, status=429)
+        rsps_lib.get(_FLAKY, status=200)
+        rsps_lib.get("https://api.example.com/boom", status=500)
+        client = APIClient("https://api.example.com", retry_backoff_factor=0, retry_statuses=[429])
+        assert client.get("/flaky").status_code == 200
+        assert client.get("/boom").status_code == 500
+        assert len(rsps_lib.calls) == 3  # 429 + 200 retried; 500 not retried
+
+    @rsps_lib.activate(registry=rsps_lib.registries.OrderedRegistry)
+    def test_post_not_retried_by_default(self):
+        rsps_lib.post(_FLAKY, status=503)
+        rsps_lib.post(_FLAKY, status=200)
+        client = APIClient("https://api.example.com", retry_backoff_factor=0)
+        assert client.post("/flaky", json={}).status_code == 503
+        assert len(rsps_lib.calls) == 1
+
+    @rsps_lib.activate(registry=rsps_lib.registries.OrderedRegistry)
+    def test_plain_retry_object_still_records_attempts(self, caplog):
+        from urllib3.util.retry import Retry
+
+        rsps_lib.get(_FLAKY, status=418)
+        rsps_lib.get(_FLAKY, status=200)
+        client = APIClient(
+            "https://api.example.com",
+            retry=Retry(total=1, status_forcelist=[418], raise_on_status=False),
+        )
+        with caplog.at_level("DEBUG", logger="pytest_api_core.client"):
+            assert client.get("/flaky").status_code == 200
+        assert _sentinels(caplog, "__API_CALL__")[0]["retries"][0]["status"] == 418
+
+    def test_client_default_retry_statuses(self):
+        c = APIClient("https://api.example.com")
+        retry = c._session.get_adapter("https://api.example.com").max_retries
+        assert retry.status_forcelist == {500, 502, 503, 504}
+
+    def test_endpoint_stats_count_retried_calls(self):
+        rec = _TestRecord("t::a")
+        rec.api_calls = [
+            {
+                "method": "GET",
+                "url": "https://h/users/1",
+                "status": 200,
+                "elapsed_ms": 5.0,
+                "retries": [{"attempt": 1, "status": 503, "at_ms": 2.0}],
+            },
+            {"method": "GET", "url": "https://h/users/2", "status": 200, "elapsed_ms": 3.0},
+        ]
+        (stat,) = _endpoint_stats([rec])
+        assert stat["retried"] == 1 and stat["errors"] == 0
+
+
+class TestRetryStatusConfig:
+    pytestmark = pytest.mark.unit
+
+    def test_default(self):
+        assert ConfigManager(env="dev").load()["api_retry_statuses"] == [500, 502, 503, 504]
+
+    def test_env_var(self, monkeypatch):
+        monkeypatch.setenv("API_RETRY_STATUSES", "429, 503,504")
+        assert ConfigManager(env="dev").load()["api_retry_statuses"] == [429, 503, 504]
+
+    def test_env_var_rejects_non_integers(self, monkeypatch):
+        monkeypatch.setenv("API_RETRY_STATUSES", "429,abc")
+        with pytest.raises(ValueError, match="comma-separated integers"):
+            ConfigManager(env="dev").load()
+
+    def test_cli_and_settings(self):
+        import sys
+        import types
+
+        from pytest_api_core.config.base_settings import BaseSettings
+
+        mod = types.ModuleType("_test_settings_statuses")
+
+        class Staging(BaseSettings):
+            api_retry_statuses = [429, 503]
+
+        mod.ENVIRONMENTS = {"staging": Staging}  # type: ignore[attr-defined]
+        sys.modules["_test_settings_statuses"] = mod
+        try:
+            cfg = ConfigManager(env="staging", settings_module="_test_settings_statuses").load()
+            assert cfg["api_retry_statuses"] == [429, 503]
+            cfg = ConfigManager(
+                env="staging",
+                settings_module="_test_settings_statuses",
+                cli_overrides={"api_retry_statuses": [502]},
+            ).load()
+            assert cfg["api_retry_statuses"] == [502]
+        finally:
+            del sys.modules["_test_settings_statuses"]
