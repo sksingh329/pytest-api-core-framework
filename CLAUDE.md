@@ -105,4 +105,4 @@ When writing tests for new framework features, mock HTTP with `@responses.activa
 - `black` with `line-length = 100`
 - `isort` with `profile = "black"`
 - `mypy` in strict mode (`strict = true`)
-- Python 3.9+ compatibility required (use `from __future__ import annotations` for PEP 604 union types)
+- Python 3.10+ compatibility required (use `from __future__ import annotations` for PEP 604 union types in annotations)

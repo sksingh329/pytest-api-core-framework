@@ -56,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   terminals that support it)
 
 ### Changed
+- **Requires Python 3.10 or newer.** Python 3.9 is end-of-life and no longer tested;
+  pip will not install 1.2.0 on 3.9 (stay on 1.1.1 there)
 - A plain `urllib3.Retry` passed to `APIClient(retry=...)` is replaced by an equivalent
   `RecordingRetry` with the same settings, so the adapter no longer holds the exact
   object that was passed in
