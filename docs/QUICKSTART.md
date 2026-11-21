@@ -16,19 +16,19 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 ## 2. Install the plugin
 
 ```bash
-pip install pytest-api-core==1.1.1
+pip install pytest-api-core==1.2.0
 ```
 
 With `.env` file support (recommended):
 
 ```bash
-pip install "pytest-api-core[dotenv]==1.1.1"
+pip install "pytest-api-core[dotenv]==1.2.0"
 ```
 
 ### Pin in `requirements.txt`
 
 ```
-pytest-api-core[dotenv]==1.1.1
+pytest-api-core[dotenv]==1.2.0
 ```
 
 ```bash
@@ -136,6 +136,7 @@ log_cli_date_format = %H:%M:%S
 | `api_settings_module` | Dotted path to your `settings.py` |
 | `api_dotenv_file` | Path to your `.env` file (loaded before fixtures run) |
 | `api_html_report` | Output path; `{env}` and `{timestamp}` are expanded automatically |
+| `api_html_report_url` | Where reports are published (e.g. a CI Pages site); the log prints `<url>/<report file>`. Env var `API_HTML_REPORT_URL` overrides it |
 | `api_html_theme` | `dark` or `light` |
 | `api_log_level` | Log level for framework internals (`DEBUG`/`INFO`/`WARNING`) |
 
@@ -362,6 +363,9 @@ pytest tests/ --api-retry-methods=GET,HEAD,OPTIONS,PUT --api-retry-statuses=429,
 # A request is retried only if its method AND status are both in these lists —
 # see "Retry policy" in the README for the full rules
 
+# Capture full request/response bodies in the HTML report (default: first 2000 characters)
+pytest tests/ --api-body-limit=0
+
 # Verbose debug output (shows full request/response)
 pytest tests/ --api-log-level=DEBUG -s
 
@@ -388,6 +392,7 @@ Shell env vars take highest priority and always override `settings.py` values.
 | `API_RETRY_BACKOFF_FACTOR` | Overrides retry backoff factor (default: `0.3`) |
 | `API_RETRY_METHODS` | Overrides retryable HTTP methods, comma-separated (default: `GET,HEAD,OPTIONS`) |
 | `API_RETRY_STATUSES` | Overrides retryable response status codes, comma-separated (default: `500,502,503,504`) |
+| `API_BODY_LIMIT` | Max characters of each request/response body kept in the HTML report; `0` or `unlimited` = full bodies (default: `2000`) |
 | `BEARER_TOKEN` | Read by the `conftest.py` override above |
 | `API_TOKEN` | Read by the built-in `api_client` fixture (if not overriding) |
 | `API_USERNAME` / `API_PASSWORD` | Read by `api_basic_auth` fixture |
@@ -399,7 +404,7 @@ Shell env vars take highest priority and always override `settings.py` values.
 
 ```yaml
 - name: Install dependencies
-  run: pip install "pytest-api-core[dotenv]==1.1.1"
+  run: pip install "pytest-api-core[dotenv]==1.2.0"
 
 - name: Run API tests
   run: pytest tests/ -v

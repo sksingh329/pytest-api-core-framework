@@ -23,8 +23,16 @@ from typing import Any, Generator
 import pytest
 
 from pytest_api_core.auth.auth_handlers import APIKeyAuth, BasicAuth, BearerAuth
-from pytest_api_core.client.api_client import DEFAULT_RETRY_STATUSES, APIClient
-from pytest_api_core.config.config_manager import ConfigManager, parse_status_list
+from pytest_api_core.client.api_client import (
+    DEFAULT_BODY_LIMIT,
+    DEFAULT_RETRY_STATUSES,
+    APIClient,
+)
+from pytest_api_core.config.config_manager import (
+    ConfigManager,
+    parse_body_limit,
+    parse_status_list,
+)
 
 # ---------------------------------------------------------------------------
 # Config fixture
@@ -41,8 +49,9 @@ def api_config(request: pytest.FixtureRequest) -> dict[str, Any]:
     Override via env-var: ``API_ENV=staging``
 
     Retry policy (``api_retry_total``, ``api_retry_backoff_factor``,
-    ``api_retry_methods``, ``api_retry_statuses``) follows the same precedence — env var >
-    ``--api-retry-*`` CLI flag > settings class attribute > built-in default.
+    ``api_retry_methods``, ``api_retry_statuses``) and the report body limit
+    (``api_body_limit``) follow the same precedence — env var > ``--api-retry-*`` /
+    ``--api-body-limit`` CLI flag > settings class attribute > built-in default.
     """
     env: str | None = (
         request.config.getoption("--api-env", default=None)
@@ -60,6 +69,7 @@ def api_config(request: pytest.FixtureRequest) -> dict[str, Any]:
     retry_statuses_override: str | None = request.config.getoption(
         "--api-retry-statuses", default=None
     )
+    body_limit_override: str | None = request.config.getoption("--api-body-limit", default=None)
     settings_module: str | None = request.config.getini("api_settings_module") or None
 
     cli_overrides: dict[str, Any] = {}
@@ -75,6 +85,8 @@ def api_config(request: pytest.FixtureRequest) -> dict[str, Any]:
         ]
     if retry_statuses_override:
         cli_overrides["api_retry_statuses"] = parse_status_list(retry_statuses_override)
+    if body_limit_override is not None:
+        cli_overrides["api_body_limit"] = parse_body_limit(body_limit_override)
 
     manager = ConfigManager(
         env=env,
@@ -133,6 +145,7 @@ def api_client(api_config: dict[str, Any], auth_provider: Any) -> Generator[APIC
         retry_backoff_factor=api_config.get("api_retry_backoff_factor", 0.3),
         retry_methods=api_config.get("api_retry_methods", ("GET", "HEAD", "OPTIONS")),
         retry_statuses=api_config.get("api_retry_statuses", DEFAULT_RETRY_STATUSES),
+        body_limit=api_config.get("api_body_limit", DEFAULT_BODY_LIMIT),
     )
     yield client
     client.close()

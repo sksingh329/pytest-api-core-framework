@@ -21,7 +21,7 @@ from pytest_api_core.fixtures.api_fixtures import (
     api_key_auth,
     auth_provider,
 )
-from pytest_api_core.reporters.html_reporter import HTMLReporter
+from pytest_api_core.reporters.html_reporter import HTMLReporter, MarkerTagger, is_xdist_worker
 from pytest_api_core.security.redaction import (
     add_sensitive_keys,
     install_log_filter,
@@ -99,6 +99,14 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Comma-separated response status codes that trigger a retry "
         "(default: 500,502,503,504)",
     )
+    group.addoption(
+        "--api-body-limit",
+        action="store",
+        default=None,
+        metavar="CHARS",
+        help="Max characters of each request/response body captured in the HTML report "
+        "(default: 2000). 0 or 'unlimited' captures bodies in full",
+    )
     # Register ini options to suppress "Unknown config option" warnings
     parser.addini("api_env", help="Default environment (e.g. dev, staging, prod)", default="dev")
     parser.addini("api_html_report", help="Output path for the custom HTML report", default=None)
@@ -114,6 +122,15 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "api_html_header",
         help="Report page header text (default: API Test Report)",
         default="API Test Report",
+    )
+    parser.addini(
+        "api_html_report_url",
+        help=(
+            "Public base URL the report is published under (e.g. a CI/GitHub Pages site). "
+            "When set, the terminal prints <url>/<report file name> instead of the local "
+            "file:// path. The API_HTML_REPORT_URL env var takes precedence."
+        ),
+        default=None,
     )
     parser.addini(
         "api_log_level",
@@ -170,9 +187,13 @@ def pytest_configure(config: pytest.Config) -> None:
         report_path = config.getini("api_html_report")
     if report_path:
         env = config.getoption("--api-env", default=None) or config.getini("api_env") or "default"
-        report_path = _resolve_report_path(report_path, env)
-        plugin = HTMLReporter(report_path, config)
-        config.pluginmanager.register(plugin, "api-html-reporter")
+        # Every process (incl. xdist workers) tags reports with markers, but only
+        # the controller writes the report — workers forward their results to it.
+        config.pluginmanager.register(MarkerTagger(), "api-html-marker-tagger")
+        if not is_xdist_worker(config):
+            report_path = _resolve_report_path(report_path, env)
+            plugin = HTMLReporter(report_path, config)
+            config.pluginmanager.register(plugin, "api-html-reporter")
 
 
 def _resolve_report_path(path: str, env: str) -> str:

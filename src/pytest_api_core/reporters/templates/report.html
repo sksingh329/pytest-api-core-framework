@@ -4,11 +4,15 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>{{ report_title }}</title>
+{# Machine-readable run outcome, e.g. for CI dashboards listing many reports. #}
+<meta name="api-core-status" content="{{ 'failed' if failed or error else 'passed' }}"/>
+<meta name="api-core-counts" content="total={{ total }};passed={{ passed }};failed={{ failed }};error={{ error }};skipped={{ skipped }};xfailed={{ xfailed }};xpassed={{ xpassed }}"/>
 <style>
 :root {
   --bg: #f8fafc; --surface: #ffffff; --border: #e2e8f0;
   --text: #1e293b; --text-muted: #64748b;
   --pass: #22c55e; --fail: #ef4444; --error: #f97316; --skip: #94a3b8; --retry: #ca8a04;
+  --xfail: #a855f7; --xpass: #14b8a6;
   --code-bg: #0f172a; --code-text: #e2e8f0;
   --shadow: 0 1px 3px rgba(0,0,0,.1);
   --method-get: #3b82f6; --method-post: #22c55e; --method-put: #f59e0b;
@@ -47,6 +51,8 @@ header small { color: var(--text-muted); margin-left: 10px; font-weight: 400; fo
 .stat-card.error .stat-value { color: var(--error); }
 .stat-card.skip .stat-value { color: var(--skip); }
 .stat-card.retry .stat-value { color: var(--retry); }
+.stat-card.xfail .stat-value { color: var(--xfail); }
+.stat-card.xpass .stat-value { color: var(--xpass); }
 
 /* ── Controls ───────────────────────────────────────────────────────── */
 .controls { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -69,15 +75,45 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align:
 .result-row.error   { border-left: 3px solid var(--error); }
 .result-row.passed  { border-left: 3px solid var(--pass); }
 .result-row.skipped { border-left: 3px solid var(--skip); }
+.result-row.xfailed { border-left: 3px solid var(--xfail); }
+.result-row.xpassed { border-left: 3px solid var(--xpass); }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 4px;
          font-size: 11px; font-weight: 700; letter-spacing: .5px; }
 .badge-pass  { background: #dcfce7; color: #15803d; }
 .badge-fail  { background: #fee2e2; color: #dc2626; }
 .badge-error { background: #ffedd5; color: #c2410c; }
 .badge-skip  { background: #f1f5f9; color: #475569; }
+.badge-xfail { background: #f3e8ff; color: #7e22ce; }
+.badge-xpass { background: #ccfbf1; color: #0f766e; }
+th.sortable { padding: 0; }
+.sort-btn { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 4px;
+            width: 100%; padding: 10px 14px; cursor: pointer; font: inherit; color: inherit;
+            text-transform: inherit; letter-spacing: inherit; }
+.sort-btn:hover, .sort-btn:focus-visible { color: var(--text); }
+.sort-btn:focus-visible { outline: 2px solid var(--method-get); outline-offset: -2px; }
+.sort-ind { font-size: 9px; opacity: .35; }
+th[aria-sort="ascending"] .sort-ind, th[aria-sort="descending"] .sort-ind { opacity: 1; }
 .test-name { font-family: "SF Mono", "Fira Code", monospace; font-size: 12px;
              max-width: 600px; overflow-wrap: break-word; }
 .duration { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.link-btn { margin-left: 4px; padding: 0 4px; border: 1px solid transparent; border-radius: 4px;
+            background: none; cursor: pointer; font-size: 11px; line-height: 1.4;
+            color: var(--text-muted); opacity: 0; transition: opacity .1s; }
+.result-row:hover .link-btn, .link-btn:focus-visible { opacity: 1; }
+.link-btn:hover, .link-btn:focus-visible { border-color: var(--border); color: var(--text); }
+@media (hover: none) { .link-btn { opacity: .6; } }
+.result-row.linked td { animation: linked-flash 2.4s ease-out; }
+@keyframes linked-flash { 0%, 40% { background: rgba(59,130,246,.18); } 100% { background: transparent; } }
+.link-notice { display: none; margin-bottom: 12px; padding: 8px 12px; border-radius: 6px;
+               border: 1px solid var(--error); color: var(--text); background: var(--surface);
+               font-size: 13px; }
+.link-notice.open { display: block; }
+.fail-reason { margin-top: 4px; font-size: 11.5px; line-height: 1.4; color: var(--fail);
+               overflow-wrap: anywhere; }
+.result-row.error .fail-reason { color: var(--error); }
+.filter-btn.failures:not(.active) { color: var(--fail); border-color: var(--fail); }
+.worker-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 10px;
+              font-size: 10px; border: 1px solid var(--border); color: var(--text-muted); }
 .marker { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 10px;
           font-size: 10px; background: #ede9fe; color: #6d28d9; }
 .test-chevron { display: inline-block; font-size: 10px; color: #64748b;
@@ -96,6 +132,14 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align:
                color: var(--code-text); white-space: pre-wrap; overflow-wrap: break-word;
                max-height: 300px; overflow-y: auto; }
 .log-block   { color: #fde68a; }
+.failure-block { color: #fca5a5; }
+.label-row { display: flex; align-items: center; gap: 8px; }
+.label-row .detail-label { margin-bottom: 0; }
+.copy-btn { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.15);
+            color: #cbd5e1; border-radius: 4px; padding: 0 8px; font-size: 10px;
+            line-height: 1.6; cursor: pointer; }
+.copy-btn:hover, .copy-btn:focus-visible { background: rgba(255,255,255,.14); }
+.label-row + .code-block { margin-top: 6px; }
 
 /* ── HTTP call banner ───────────────────────────────────────────────── */
 .http-banner { border: 1px solid #334155; border-radius: 8px; overflow: hidden; }
@@ -160,6 +204,62 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align:
                  color: #cbd5e1; white-space: pre-wrap; overflow-wrap: break-word;
                  max-height: 300px; overflow-y: auto; padding: 8px; }
 
+/* ── JSON body viewer ────────────────────────────────────────────────── */
+.body-note { margin: 8px 8px 0; padding: 6px 10px; border-radius: 4px; font-size: 11.5px;
+             color: #fde68a; background: rgba(251,191,36,.1); border: 1px solid rgba(251,191,36,.3); }
+.body-note code { font-family: "SF Mono", "Fira Code", monospace; font-size: 11px; color: #fef3c7; }
+.json-view { position: relative; }
+.json-toolbar { display: flex; gap: 6px; padding: 6px 8px 0; flex-wrap: wrap; }
+.json-btn { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.15);
+            color: #cbd5e1; border-radius: 4px; padding: 1px 8px; font-size: 11px; cursor: pointer; }
+.json-btn:hover, .json-btn:focus-visible { background: rgba(255,255,255,.14); }
+.json-tree { font-family: "SF Mono", "Fira Code", monospace; font-size: 12px; color: #cbd5e1;
+             max-height: 420px; overflow: auto; padding: 8px; line-height: 1.5; }
+.json-tree summary { list-style: none; cursor: pointer; }
+.json-tree summary::-webkit-details-marker { display: none; }
+.json-tree summary::before { content: "▾"; display: inline-block; width: 1em; margin-left: -1em;
+                             color: #64748b; font-size: 10px; }
+.json-tree details:not([open]) > summary::before { content: "▸"; }
+.json-tree details[open] > summary .j-hint { display: none; }
+.json-tree .j-hint { color: #64748b; }
+.json-tree .j-hint em { font-style: normal; font-size: 10px; margin-left: 4px; }
+.json-tree .j-children { padding-left: 1.4em; }
+.json-tree > .j-node, .json-tree > .j-line { margin-left: 1em; }
+.j-line, .j-close { white-space: pre-wrap; overflow-wrap: anywhere; }
+.j-key { color: #93c5fd; }
+.j-str { color: #86efac; }
+.j-num { color: #fbbf24; }
+.j-lit { color: #c4b5fd; }
+.j-p   { color: #94a3b8; }
+
+/* ── Assertion diff ─────────────────────────────────────────────────── */
+.assert-diff { margin: 2px 0 8px 30px; font-size: 12px; }
+.diff-table { width: 100%; border-collapse: collapse; box-shadow: none; border-radius: 6px;
+              background: rgba(0,0,0,.25); font-family: "SF Mono", "Fira Code", monospace; }
+.diff-table thead tr { background: transparent; border-bottom: 1px solid rgba(255,255,255,.12); }
+.diff-table th { color: #94a3b8; font-size: 10px; padding: 5px 10px; }
+.diff-table td { padding: 4px 10px; border-bottom: 1px solid rgba(255,255,255,.06);
+                 color: #cbd5e1; overflow-wrap: anywhere; }
+.diff-kind { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+.diff-kind.changed, .diff-kind.type { color: #fbbf24; }
+.diff-kind.missing { color: #fca5a5; }
+.diff-kind.unexpected { color: #93c5fd; }
+.diff-more { color: #94a3b8; padding: 4px 10px; }
+.assert-diff details { margin-top: 6px; }
+.assert-diff summary { cursor: pointer; font-size: 11px; color: #94a3b8; }
+.sbs { display: grid; grid-template-columns: 1fr 1fr; margin-top: 6px; max-height: 420px;
+       overflow: auto; border-radius: 6px; background: rgba(0,0,0,.25);
+       font-family: "SF Mono", "Fira Code", monospace; font-size: 12px; }
+.sbs-head { position: sticky; top: 0; background: #1e293b; color: #94a3b8; font-size: 10px;
+            text-transform: uppercase; letter-spacing: .6px; padding: 4px 10px; }
+.sbs-cell { white-space: pre-wrap; overflow-wrap: anywhere; padding: 0 10px; color: #cbd5e1;
+            min-height: 1.5em; line-height: 1.5; }
+.sbs-cell + .sbs-cell, .sbs-head + .sbs-head { border-left: 1px solid rgba(255,255,255,.08); }
+.sbs-cell.chg { background: rgba(251,191,36,.14); }
+.sbs-cell.del { background: rgba(239,68,68,.18); }
+.sbs-cell.ins { background: rgba(59,130,246,.18); }
+.sbs-cell.gap { background: rgba(255,255,255,.03); }
+
 /* ── Assertion banners ──────────────────────────────────────────────── */
 .assert-list { display: flex; flex-direction: column; gap: 4px; }
 .assert-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 10px;
@@ -193,6 +293,88 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
 .info-table td:first-child { color: var(--text-muted); white-space: nowrap; }
 .info-table td:last-child { color: var(--text); font-family: "SF Mono", "Fira Code", monospace;
                              text-align: right; word-break: break-all; }
+
+/* ── Light theme: test details panel ───────────────────────────────────
+   The details panel was designed on a dark background (--code-bg). In the
+   light theme it gets a light surface and matching text/syntax colours. */
+[data-theme="light"] .detail-body { background: #f1f5f9; border-top: 1px solid var(--border);
+                                    border-bottom: 1px solid var(--border); }
+[data-theme="light"] .detail-label { color: #64748b; }
+[data-theme="light"] .log-label { color: #b45309; }
+[data-theme="light"] .code-block { background: #ffffff; color: #1e293b; border: 1px solid var(--border);
+                                   border-radius: 6px; padding: 10px 12px; }
+[data-theme="light"] .log-block { color: #78350f; }
+[data-theme="light"] .failure-block { color: #b91c1c; }
+[data-theme="light"] .copy-btn,
+[data-theme="light"] .json-btn { background: #ffffff; border-color: #cbd5e1; color: #334155; }
+[data-theme="light"] .copy-btn:hover, [data-theme="light"] .copy-btn:focus-visible,
+[data-theme="light"] .json-btn:hover, [data-theme="light"] .json-btn:focus-visible { background: #e2e8f0; }
+
+[data-theme="light"] .http-banner { border-color: var(--border); background: #ffffff; }
+[data-theme="light"] .http-headline { background: #ffffff; }
+[data-theme="light"] .http-headline:hover { background: #f8fafc; }
+[data-theme="light"] .http-url { color: #0f172a; }
+[data-theme="light"] .elapsed-chip { color: #64748b; }
+[data-theme="light"] .http-chevron { color: #94a3b8; }
+[data-theme="light"] .curl-btn { border-color: #cbd5e1; color: #334155; }
+[data-theme="light"] .curl-btn:hover { border-color: #94a3b8; color: #0f172a; }
+[data-theme="light"] .status-2xx { background: #dcfce7; color: #15803d; }
+[data-theme="light"] .status-3xx { background: #dbeafe; color: #1d4ed8; }
+[data-theme="light"] .status-4xx { background: #fee2e2; color: #b91c1c; }
+[data-theme="light"] .status-5xx { background: #ffedd5; color: #c2410c; }
+[data-theme="light"] .status-err { background: #fee2e2; color: #991b1b; }
+[data-theme="light"] .http-error-line, [data-theme="light"] .http-error-pre { color: #b91c1c; }
+[data-theme="light"] .retry-chip { background: #fef3c7; color: #92400e; }
+[data-theme="light"] .http-body { background: #ffffff; border-top: 1px solid var(--border); }
+[data-theme="light"] .http-tabs { border-bottom-color: var(--border); }
+[data-theme="light"] .http-tab { color: #64748b; }
+[data-theme="light"] .http-tab.active { color: #0f172a; }
+[data-theme="light"] .http-kv-table th { color: #64748b; }
+[data-theme="light"] .http-kv-table td { color: #334155; }
+[data-theme="light"] .http-kv-table tr:nth-child(even) td { background: #f8fafc; }
+[data-theme="light"] .http-kv-table td:first-child { color: #1d4ed8; }
+[data-theme="light"] .http-body-pre { color: #334155; }
+[data-theme="light"] .body-note { color: #92400e; background: #fffbeb; border-color: #fcd34d; }
+[data-theme="light"] .body-note code { color: #78350f; }
+
+[data-theme="light"] .json-tree { color: #334155; }
+[data-theme="light"] .json-tree summary::before,
+[data-theme="light"] .json-tree .j-hint { color: #94a3b8; }
+[data-theme="light"] .j-key { color: #1d4ed8; }
+[data-theme="light"] .j-str { color: #15803d; }
+[data-theme="light"] .j-num { color: #b45309; }
+[data-theme="light"] .j-lit { color: #7c3aed; }
+[data-theme="light"] .j-p   { color: #64748b; }
+
+[data-theme="light"] .assert-pass { background: #f0fdf4; border-color: #bbf7d0; }
+[data-theme="light"] .assert-fail { background: #fef2f2; border-color: #fecaca; }
+[data-theme="light"] .assert-name { color: #0f172a; }
+[data-theme="light"] .assert-detail { color: #64748b; }
+[data-theme="light"] .assert-detail .exp { color: #15803d; }
+[data-theme="light"] .assert-detail .got { color: #b91c1c; }
+[data-theme="light"] .assert-errors { color: #b91c1c; }
+[data-theme="light"] .assert-schema-detail summary,
+[data-theme="light"] .assert-diff summary { color: #64748b; }
+[data-theme="light"] .assert-schema-detail summary:hover,
+[data-theme="light"] .assert-diff summary:hover { color: #0f172a; }
+
+[data-theme="light"] .diff-table { background: #ffffff; border: 1px solid var(--border); }
+[data-theme="light"] .diff-table thead tr { border-bottom-color: var(--border); }
+[data-theme="light"] .diff-table th { color: #64748b; }
+[data-theme="light"] .diff-table td { color: #334155; border-bottom-color: #f1f5f9; }
+[data-theme="light"] .diff-kind.changed, [data-theme="light"] .diff-kind.type { color: #b45309; }
+[data-theme="light"] .diff-kind.missing { color: #b91c1c; }
+[data-theme="light"] .diff-kind.unexpected { color: #1d4ed8; }
+[data-theme="light"] .diff-more { color: #64748b; }
+[data-theme="light"] .sbs { background: #ffffff; border: 1px solid var(--border); }
+[data-theme="light"] .sbs-head { background: #f1f5f9; color: #64748b; }
+[data-theme="light"] .sbs-cell { color: #334155; }
+[data-theme="light"] .sbs-cell + .sbs-cell,
+[data-theme="light"] .sbs-head + .sbs-head { border-left-color: var(--border); }
+[data-theme="light"] .sbs-cell.chg { background: #fef3c7; }
+[data-theme="light"] .sbs-cell.del { background: #fee2e2; }
+[data-theme="light"] .sbs-cell.ins { background: #dbeafe; }
+[data-theme="light"] .sbs-cell.gap { background: #f8fafc; }
 </style>
 </head>
 <body>
@@ -215,6 +397,31 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
     </div>
   </div>
 </header>
+
+{% macro body_view(text, vid, truncated=false, limit=0, full_len=0) -%}
+  {%- if truncated -%}
+  <div class="body-note">⚠ Truncated to {{ "{:,}".format(limit) }}{% if full_len %} of {{ "{:,}".format(full_len) }}{% endif %} characters.
+    Set <code>api_body_limit = 0</code> (or <code>--api-body-limit=0</code> / <code>API_BODY_LIMIT=0</code>) to capture bodies in full.</div>
+  {%- elif text and text | length > json_view_max -%}
+  <div class="body-note">Body is {{ "{:,}".format(text | length) }} characters — shown raw, too large for the collapsible view.</div>
+  {%- endif -%}
+  {%- set jv = text | json_view -%}
+  {%- if jv -%}
+  <div class="json-view" id="{{ vid }}">
+    <div class="json-toolbar">
+      <button type="button" class="json-btn" onclick="jsonToggleAll('{{ vid }}', false)">Collapse all</button>
+      <button type="button" class="json-btn" onclick="jsonToggleAll('{{ vid }}', true)">Expand all</button>
+      <button type="button" class="json-btn" onclick="jsonRaw('{{ vid }}', this)">Raw</button>
+      <button type="button" class="json-btn" onclick="copyText(document.getElementById('{{ vid }}-pretty').textContent, this, 'Copied', 'Copy failed')">Copy</button>
+    </div>
+    <div class="json-tree">{{ jv.tree }}</div>
+    <pre class="http-body-pre json-raw" hidden>{{ text }}</pre>
+    <pre id="{{ vid }}-pretty" hidden>{{ jv.pretty }}</pre>
+  </div>
+  {%- else -%}
+  <pre class="http-body-pre">{{ text if text else "—" }}</pre>
+  {%- endif -%}
+{%- endmacro %}
 
 <div class="main">
   <!-- Summary -->
@@ -241,6 +448,16 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
       <div class="stat-card skip">
         <div class="stat-value">{{ skipped }}</div><div class="stat-label">Skipped</div>
       </div>
+      {% if xfailed %}
+      <div class="stat-card xfail" title="Tests marked xfail that failed as expected">
+        <div class="stat-value">{{ xfailed }}</div><div class="stat-label">XFailed</div>
+      </div>
+      {% endif %}
+      {% if xpassed %}
+      <div class="stat-card xpass" title="Tests marked xfail that unexpectedly passed">
+        <div class="stat-value">{{ xpassed }}</div><div class="stat-label">XPassed</div>
+      </div>
+      {% endif %}
       {% if retried_calls %}
       <div class="stat-card retry" title="API calls that needed at least one retry">
         <div class="stat-value">{{ retried_calls }}</div><div class="stat-label">Retried calls</div>
@@ -286,15 +503,23 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
   </details>
   {% endif %}
 
+  <div class="link-notice" id="linkNotice" role="status"></div>
+
   <!-- Filters -->
   <div class="controls">
     <input class="search-box" type="text" placeholder="Search tests…"
            oninput="filterTable()" id="searchBox"/>
-    <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
-    <button class="filter-btn" onclick="setFilter('passed', this)">Passed</button>
-    <button class="filter-btn" onclick="setFilter('failed', this)">Failed</button>
-    <button class="filter-btn" onclick="setFilter('error', this)">Error</button>
-    <button class="filter-btn" onclick="setFilter('skipped', this)">Skipped</button>
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+    {% if failed or error %}
+    <button class="filter-btn failures" data-filter="failures" onclick="setFilter('failures', this)"
+            title="Failed and errored tests">⚠ Failures ({{ failed + error }})</button>
+    {% endif %}
+    <button class="filter-btn" data-filter="passed" onclick="setFilter('passed', this)">Passed</button>
+    <button class="filter-btn" data-filter="failed" onclick="setFilter('failed', this)">Failed</button>
+    <button class="filter-btn" data-filter="error" onclick="setFilter('error', this)">Error</button>
+    <button class="filter-btn" data-filter="skipped" onclick="setFilter('skipped', this)">Skipped</button>
+    {% if xfailed %}<button class="filter-btn" data-filter="xfailed" onclick="setFilter('xfailed', this)">XFailed</button>{% endif %}
+    {% if xpassed %}<button class="filter-btn" data-filter="xpassed" onclick="setFilter('xpassed', this)">XPassed</button>{% endif %}
     <div style="flex: 1"></div>
     <button class="filter-btn" onclick="expandAll()">▼ Expand All</button>
     <button class="filter-btn" onclick="collapseAll()">▲ Collapse All</button>
@@ -304,10 +529,18 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
   <table id="resultsTable">
     <thead>
       <tr>
-        <th style="width:90px">Status</th>
-        <th>Test ID</th>
-        <th style="width:90px">Duration</th>
-        <th style="width:80px">Calls</th>
+        <th class="sortable" style="width:100px" aria-sort="none">
+          <button type="button" class="sort-btn" data-sort-key="status" onclick="sortTable('status', this)">Status <span class="sort-ind">▲▼</span></button>
+        </th>
+        <th class="sortable" aria-sort="none">
+          <button type="button" class="sort-btn" data-sort-key="name" onclick="sortTable('name', this)">Test ID <span class="sort-ind">▲▼</span></button>
+        </th>
+        <th class="sortable" style="width:110px" aria-sort="none">
+          <button type="button" class="sort-btn" data-sort-key="duration" onclick="sortTable('duration', this)">Duration <span class="sort-ind">▲▼</span></button>
+        </th>
+        <th class="sortable" style="width:90px" aria-sort="none">
+          <button type="button" class="sort-btn" data-sort-key="calls" onclick="sortTable('calls', this)">Calls <span class="sort-ind">▲▼</span></button>
+        </th>
       </tr>
     </thead>
     <tbody id="tableBody">
@@ -317,13 +550,18 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
       <tr class="result-row {{ rec.outcome }}"
           {% if has_detail %}onclick="toggleDetail('detail-{{ idx }}')"
           style="cursor:pointer"{% endif %}
-          data-outcome="{{ rec.outcome }}">
+          data-outcome="{{ rec.outcome }}"
+          data-index="{{ idx }}"
+          data-name="{{ rec.node_id }}"
+          data-duration="{{ rec.duration }}"
+          data-calls="{{ rec.api_calls | length }}">
         <td>
-          <span class="badge badge-{{ rec.outcome[:4] if rec.outcome != 'unknown' else 'skip' }}
+          <span class="badge
             {%- if rec.outcome == 'passed' %} badge-pass
             {%- elif rec.outcome == 'failed' %} badge-fail
             {%- elif rec.outcome == 'error' %} badge-error
-            {%- elif rec.outcome == 'skipped' %} badge-skip
+            {%- elif rec.outcome == 'xfailed' %} badge-xfail
+            {%- elif rec.outcome == 'xpassed' %} badge-xpass
             {%- else %} badge-skip{% endif %}">
             {{ rec.outcome | upper }}
           </span>
@@ -333,9 +571,19 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
           <span class="test-chevron" id="chev-detail-{{ idx }}">▶</span>
           {% endif %}
           {{ rec.node_id }}
+          <button type="button" class="link-btn" title="Copy link to this test"
+                  aria-label="Copy link to this test"
+                  onclick="event.stopPropagation(); copyTestLink(this)">🔗</button>
           {% for m in rec.markers %}
           <span class="marker">{{ m }}</span>
           {% endfor %}
+          {% if rec.worker %}
+          <span class="worker-tag" title="Ran on pytest-xdist worker {{ rec.worker }}">⚙ {{ rec.worker }}</span>
+          {% endif %}
+          {% set reason = rec | failure_reason %}
+          {% if reason %}
+          <div class="fail-reason" title="{{ reason }}">✖ {{ reason }}</div>
+          {% endif %}
         </td>
         <td class="duration">{{ "%.3f" | format(rec.duration) }}s</td>
         <td style="color:var(--text-muted);font-size:12px">
@@ -406,7 +654,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 </div>
 
                 <div id="req-b-{{ cid }}" class="http-tab-content">
-                  <pre class="http-body-pre">{{ call.req_body if call.req_body else "—" }}</pre>
+                  {{ body_view(call.req_body, 'jv-req-' ~ cid, call.req_body_truncated, call.body_limit or 2000) }}
                 </div>
 
                 <div id="res-h-{{ cid }}" class="http-tab-content">
@@ -421,7 +669,7 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                 </div>
 
                 <div id="res-b-{{ cid }}" class="http-tab-content">
-                  <pre class="http-body-pre">{{ call.res_body if call.res_body else "—" }}</pre>
+                  {{ body_view(call.res_body, 'jv-res-' ~ cid, call.res_body_truncated, call.body_limit or 2000, call.res_body_length) }}
                 </div>
 
                 {% if retries %}
@@ -497,6 +745,37 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
                   </span>
                   {% endif %}
                 </div>
+                {% set diff = a | assertion_diff %}
+                {% if diff %}
+                <div class="assert-diff">
+                  {% if diff.rows %}
+                  <table class="diff-table">
+                    <thead><tr><th>Path</th><th>Difference</th><th>Expected</th><th>Actual</th></tr></thead>
+                    <tbody>
+                      {% for d in diff.rows %}
+                      <tr>
+                        <td>{{ d.path }}</td>
+                        <td><span class="diff-kind {{ d.kind }}">{{ diff_words[d.kind] }}</span></td>
+                        <td>{{ d.expected if d.kind != 'unexpected' else '—' }}</td>
+                        <td>{{ d.actual if d.kind != 'missing' else '—' }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                  {% if diff.more %}<div class="diff-more">… and {{ diff.more }} more difference(s)</div>{% endif %}
+                  {% endif %}
+                  <details{% if not diff.rows %} open{% endif %}>
+                    <summary>Side-by-side (keys sorted)</summary>
+                    <div class="sbs">
+                      <div class="sbs-head">Expected</div><div class="sbs-head">Actual</div>
+                      {% for ln in diff.lines %}
+                      <div class="sbs-cell {% if ln.kind == 'ins' %}gap{% elif ln.kind != 'same' %}{{ ln.kind }}{% endif %}">{{ ln.l }}</div>
+                      <div class="sbs-cell {% if ln.kind == 'del' %}gap{% elif ln.kind != 'same' %}{{ ln.kind }}{% endif %}">{{ ln.r }}</div>
+                      {% endfor %}
+                    </div>
+                  </details>
+                </div>
+                {% endif %}
                 {% if a.name == 'assert_matches_schema' and a.schema is defined %}
                 <details class="assert-schema-detail">
                   <summary>Schema details</summary>
@@ -514,30 +793,46 @@ footer { text-align: center; padding: 24px; color: var(--text-muted); font-size:
             {# ── Captured logs ──────────────────────────────────────── #}
             {% if rec.logs %}
             <div class="detail-section">
-              <div class="detail-label log-label">LOGS</div>
-              <pre class="code-block log-block">{{ rec.logs }}</pre>
+              <div class="label-row">
+                <div class="detail-label log-label">LOGS</div>
+                <button type="button" class="copy-btn" title="Copy logs"
+                        onclick="copyText(document.getElementById('logs-{{ idx }}').textContent, this, 'Copied', 'Copy failed')">Copy</button>
+              </div>
+              <pre class="code-block log-block" id="logs-{{ idx }}">{{ rec.logs }}</pre>
             </div>
             {% endif %}
 
             {# ── Stdout / stderr ────────────────────────────────────── #}
             {% if rec.stdout %}
             <div class="detail-section">
-              <div class="detail-label">STDOUT</div>
-              <pre class="code-block">{{ rec.stdout }}</pre>
+              <div class="label-row">
+                <div class="detail-label">STDOUT</div>
+                <button type="button" class="copy-btn" title="Copy stdout"
+                        onclick="copyText(document.getElementById('stdout-{{ idx }}').textContent, this, 'Copied', 'Copy failed')">Copy</button>
+              </div>
+              <pre class="code-block" id="stdout-{{ idx }}">{{ rec.stdout }}</pre>
             </div>
             {% endif %}
             {% if rec.stderr %}
             <div class="detail-section">
-              <div class="detail-label">STDERR</div>
-              <pre class="code-block">{{ rec.stderr }}</pre>
+              <div class="label-row">
+                <div class="detail-label">STDERR</div>
+                <button type="button" class="copy-btn" title="Copy stderr"
+                        onclick="copyText(document.getElementById('stderr-{{ idx }}').textContent, this, 'Copied', 'Copy failed')">Copy</button>
+              </div>
+              <pre class="code-block" id="stderr-{{ idx }}">{{ rec.stderr }}</pre>
             </div>
             {% endif %}
 
             {# ── Failure traceback ──────────────────────────────────── #}
             {% if rec.longrepr %}
             <div class="detail-section">
-              <div class="detail-label" style="color:#f87171">FAILURE</div>
-              <pre class="code-block" style="color:#fca5a5">{{ rec.longrepr }}</pre>
+              <div class="label-row">
+                <div class="detail-label" style="color:#f87171">FAILURE</div>
+                <button type="button" class="copy-btn" title="Copy failure"
+                        onclick="copyText(document.getElementById('failure-{{ idx }}').textContent, this, 'Copied', 'Copy failed')">Copy</button>
+              </div>
+              <pre class="code-block failure-block" id="failure-{{ idx }}">{{ rec.longrepr }}</pre>
             </div>
             {% endif %}
 
@@ -605,10 +900,32 @@ function switchTab(tabEl, contentId) {
 function copyCurl(srcId, btn) {
   var src = document.getElementById(srcId);
   if (!src) return;
-  var text = src.textContent;
+  copyText(src.textContent, btn, 'Copied', 'Copy failed');
+}
+
+function jsonToggleAll(vid, open) {
+  document.querySelectorAll('#' + vid + ' details').forEach(function(d) { d.open = open; });
+}
+
+function jsonRaw(vid, btn) {
+  var root = document.getElementById(vid);
+  var tree = root.querySelector('.json-tree'), raw = root.querySelector('.json-raw');
+  var showRaw = raw.hidden;
+  raw.hidden = !showRaw;
+  tree.hidden = showRaw;
+  btn.textContent = showRaw ? 'Pretty' : 'Raw';
+}
+
+function copyTestLink(btn) {
+  var row = btn.closest('tr.result-row');
+  var url = location.href.split('#')[0] + '#' + new URLSearchParams({ test: row.dataset.name }).toString();
+  copyText(url, btn, '✓', '✗');
+}
+
+function copyText(text, btn, okLabel, failLabel) {
   function done(ok) {
     var label = btn.textContent;
-    btn.textContent = ok ? 'Copied' : 'Copy failed';
+    btn.textContent = ok ? okLabel : failLabel;
     setTimeout(function() { btn.textContent = label; }, 1200);
   }
   function fallback() {
@@ -630,19 +947,26 @@ function copyCurl(srcId, btn) {
   }
 }
 
-function setFilter(outcome, btn) {
+function setFilter(outcome, btn, restoring) {
   currentFilter = outcome;
   document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
   btn.classList.add('active');
   applyFilters();
+  if (!restoring) saveState();
 }
 
-function filterTable() { applyFilters(); }
+function filterTable() { applyFilters(); saveState(); }
+
+function matchesFilter(outcome) {
+  if (currentFilter === 'all') return true;
+  if (currentFilter === 'failures') return outcome === 'failed' || outcome === 'error';
+  return outcome === currentFilter;
+}
 
 function applyFilters() {
   var query = document.getElementById('searchBox').value.toLowerCase();
   document.querySelectorAll('#tableBody .result-row').forEach(function(row) {
-    var matchOutcome = currentFilter === 'all' || row.dataset.outcome === currentFilter;
+    var matchOutcome = matchesFilter(row.dataset.outcome);
     var matchSearch = !query || row.innerText.toLowerCase().includes(query);
     var show = matchOutcome && matchSearch;
     row.style.display = show ? '' : 'none';
@@ -653,6 +977,65 @@ function applyFilters() {
       if (detail && !show) detail.style.display = 'none';
     }
   });
+}
+
+// Status sort puts the most actionable outcomes first when ascending.
+var STATUS_RANK = { error: 0, failed: 1, xpassed: 2, unknown: 3, skipped: 4, xfailed: 5, passed: 6 };
+var currentSort = { key: null, dir: 1 };
+
+function sortValue(row, key) {
+  switch (key) {
+    case 'status':   return STATUS_RANK.hasOwnProperty(row.dataset.outcome) ? STATUS_RANK[row.dataset.outcome] : 9;
+    case 'name':     return row.dataset.name.toLowerCase();
+    case 'duration': return parseFloat(row.dataset.duration) || 0;
+    case 'calls':    return parseInt(row.dataset.calls, 10) || 0;
+  }
+  return 0;
+}
+
+function sortTable(key, btn) {
+  // Click cycles ascending → descending → original order. Duration and calls
+  // start descending, since "slowest / busiest first" is the useful view.
+  var firstDir = (key === 'duration' || key === 'calls') ? -1 : 1;
+  if (currentSort.key !== key) {
+    currentSort = { key: key, dir: firstDir };
+  } else if (currentSort.dir === firstDir) {
+    currentSort.dir = -firstDir;
+  } else {
+    currentSort = { key: null, dir: 1 };
+  }
+  applySort();
+  saveState();
+}
+
+function applySort() {
+  var tbody = document.getElementById('tableBody');
+  var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.result-row'));
+  rows.sort(function(a, b) {
+    var ia = parseInt(a.dataset.index, 10), ib = parseInt(b.dataset.index, 10);
+    if (!currentSort.key) return ia - ib;
+    var va = sortValue(a, currentSort.key), vb = sortValue(b, currentSort.key);
+    if (va < vb) return -currentSort.dir;
+    if (va > vb) return currentSort.dir;
+    return ia - ib;  // stable: ties keep collection order
+  });
+  // Move each result row together with its detail row (if any).
+  rows.forEach(function(row) {
+    var detail = document.getElementById('detail-' + row.dataset.index);
+    tbody.appendChild(row);
+    if (detail) tbody.appendChild(detail);
+  });
+
+  document.querySelectorAll('#resultsTable th.sortable').forEach(function(th) {
+    th.setAttribute('aria-sort', 'none');
+    th.querySelector('.sort-ind').textContent = '▲▼';
+  });
+  var btn = currentSort.key && document.querySelector('.sort-btn[data-sort-key="' + currentSort.key + '"]');
+  if (btn) {
+    var th = btn.closest('th');
+    th.setAttribute('aria-sort', currentSort.dir === 1 ? 'ascending' : 'descending');
+    th.querySelector('.sort-ind').textContent = currentSort.dir === 1 ? '▲' : '▼';
+  }
 }
 
 function toggleInfo() {
@@ -669,12 +1052,96 @@ document.addEventListener('click', function(e) {
   }
 });
 
-function toggleTheme() {
-  var html = document.documentElement;
-  var isDark = html.getAttribute('data-theme') === 'dark';
-  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
-  document.getElementById('themeBtn').textContent = isDark ? '🌙 Dark' : '☀️ Light';
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  // Label names the theme the button switches *to*.
+  document.getElementById('themeBtn').textContent = theme === 'dark' ? '☀️ Light' : '🌙 Dark';
 }
+
+function toggleTheme() {
+  var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  setTheme(isDark ? 'light' : 'dark');
+  saveState();
+}
+
+// ── View state in the URL ────────────────────────────────────────────
+// Filter, search, sort and theme live in the URL fragment
+// (e.g. #filter=failures&q=users&sort=duration-desc&theme=light), so a refresh
+// or a shared link reopens the same view. Only user actions write it.
+var DEFAULT_THEME = '{{ theme }}';
+
+function saveState() {
+  var p = new URLSearchParams();
+  p.set('filter', currentFilter);
+  var q = document.getElementById('searchBox').value;
+  if (q) p.set('q', q);
+  if (currentSort.key) p.set('sort', currentSort.key + (currentSort.dir === 1 ? '-asc' : '-desc'));
+  var theme = document.documentElement.getAttribute('data-theme');
+  if (theme !== DEFAULT_THEME) p.set('theme', theme);
+  try { history.replaceState(null, '', '#' + p.toString()); } catch (e) { /* file:// quirks */ }
+}
+
+function restoreState() {
+  var p = new URLSearchParams(location.hash.slice(1));
+  if (!p.has('filter') && !p.has('test')) return false;
+  var theme = p.get('theme');
+  if (theme === 'light' || theme === 'dark') setTheme(theme);
+  var q = p.get('q');
+  if (q) document.getElementById('searchBox').value = q;
+  var sort = (p.get('sort') || '').match(/^(status|name|duration|calls)-(asc|desc)$/);
+  if (sort) {
+    currentSort = { key: sort[1], dir: sort[2] === 'asc' ? 1 : -1 };
+    applySort();
+  }
+  var btn = document.querySelector('.filter-btn[data-filter="' + p.get('filter') + '"]')
+         || document.querySelector('.filter-btn[data-filter="all"]');
+  setFilter(btn.dataset.filter, btn, true);
+  if (p.has('test')) showLinkedTest(p.get('test'));
+  return true;
+}
+
+// Open a test reached through its link: make sure no filter or search hides it,
+// expand it, scroll to it and flash it. Links to passed tests work the same way.
+function showLinkedTest(nodeId) {
+  var notice = document.getElementById('linkNotice');
+  notice.classList.remove('open');
+  var row = Array.prototype.find.call(
+    document.querySelectorAll('#tableBody .result-row'),
+    function(r) { return r.dataset.name === nodeId; }
+  );
+  if (!row) {
+    notice.textContent = 'Linked test not found in this report: ' + nodeId;
+    notice.classList.add('open');
+    return;
+  }
+  if (row.style.display === 'none') {
+    document.getElementById('searchBox').value = '';
+    setFilter('all', document.querySelector('.filter-btn[data-filter="all"]'), true);
+  }
+  var detail = document.getElementById('detail-' + row.dataset.index);
+  if (detail && detail.style.display === 'none') toggleDetail(detail.id);
+  row.scrollIntoView({ block: 'center' });
+  row.classList.remove('linked');
+  void row.offsetWidth;  // restart the flash animation on repeat visits
+  row.classList.add('linked');
+}
+
+// A link pasted into an already-open report only changes the fragment.
+// (history.replaceState in saveState never fires this event.)
+window.addEventListener('hashchange', restoreState);
+
+// On open: restore a saved view, or — when anything failed — jump straight
+// to the failures with the first one expanded.
+(function init() {
+  if (restoreState()) return;
+  var failuresBtn = document.querySelector('.filter-btn[data-filter="failures"]');
+  if (!failuresBtn) return;
+  setFilter('failures', failuresBtn, true);
+  var first = document.querySelector('#tableBody .result-row.failed, #tableBody .result-row.error');
+  if (first && first.dataset.index !== undefined && document.getElementById('detail-' + first.dataset.index)) {
+    toggleDetail('detail-' + first.dataset.index);
+  }
+})();
 </script>
 </body>
 </html>
