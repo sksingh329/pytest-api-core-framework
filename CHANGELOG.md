@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-21
+
+### Added
+- Retried requests are now visible. A call that failed and then passed on a retry
+  (e.g. `503` → `200`) used to look like a single clean `200`; now:
+  - each retried attempt logs a WARNING line, e.g.
+    `↻ GET https://…/orders  503  — attempt 1 failed, retrying`
+  - the HTML report flags the call with a "↻ N attempts" chip and an **Attempts** tab
+    listing each attempt's status (or connection error) and when it ended
+  - the report summary shows a **Retried calls** count and the endpoint performance
+    table a **Retried** column, so flaky endpoints stand out even when every test passed
+- Configurable retry status codes: `api_retry_statuses` settings attribute,
+  `--api-retry-statuses` CLI flag, `API_RETRY_STATUSES` env var, and
+  `APIClient(retry_statuses=...)` (default: `500,502,503,504`; add `429` to retry
+  rate-limited calls)
+- `RecordingRetry` (`pytest_api_core.client.api_client`): the `urllib3.Retry` subclass that
+  records attempts. A plain `Retry(...)` passed as `retry=` is converted automatically, so
+  custom retry policies are reported too
+- Configurable body capture for the HTML report: `api_body_limit` settings attribute,
+  `--api-body-limit` CLI flag, `API_BODY_LIMIT` env var and `APIClient(body_limit=...)`
+  (default: `2000` characters; `0` / `unlimited` captures bodies in full). Bodies are
+  redacted before they are cut, and a cut body is marked in the report with its full length
+- `api_html_report_url` ini option / `API_HTML_REPORT_URL` env var: base URL where reports
+  are published (e.g. in CI); the terminal prints `<url>/<report file>` instead of a local
+  `file://` path
+- HTML report:
+  - **Failures first** — when anything failed, the report opens on a **⚠ Failures (N)**
+    filter (failed + errored) with the first failure expanded
+  - **Failure reason** under each failed/errored test: the first failed assertion
+    (e.g. `key_equals [id]: expected 1, got 2`), else the request error, else the
+    exception message
+  - **Expected vs actual diff** for failed assertions on JSON objects/arrays: a table of
+    differing paths (changed / missing / unexpected / type differs) and a side-by-side view
+  - **Pretty JSON bodies** — syntax-coloured, collapsible request/response bodies with
+    Collapse all / Expand all / Raw / Copy buttons
+  - **Sortable results table** — by status, test ID, duration and API calls
+  - **Shareable view** — filter, search, sort and theme are kept in the URL fragment, and
+    each test has a 🔗 button that copies a link opening the report at that test
+  - **Copy buttons** for captured logs, stdout, stderr and the failure traceback
+  - **xfail support** — `XFAILED` / `XPASSED` statuses with their own badges, filters and
+    summary cards
+  - **pytest-xdist support** — one report for parallel runs (`-n`), with the worker that ran
+    each test and a worker count in Run Info
+  - Machine-readable outcome in `<meta name="api-core-status">` / `api-core-counts` for
+    dashboards that list many reports
+- The terminal report path is a clickable link (`file://` URI, plus an OSC 8 hyperlink in
+  terminals that support it)
+
+### Changed
+- A plain `urllib3.Retry` passed to `APIClient(retry=...)` is replaced by an equivalent
+  `RecordingRetry` with the same settings, so the adapter no longer holds the exact
+  object that was passed in
+- The report path is printed just above pytest's final summary line instead of after it,
+  so tools that parse that line (pytester, CI parsers) keep working
+- Pass rate counts expected outcomes (`xfailed`, non-strict `xpassed`) as passing, matching
+  pytest's exit status
+- In parallel runs the report header shows wall-clock duration instead of the sum of test
+  durations
+- In the light theme, test details use a light panel instead of the dark one
+
+### Fixed
+- Tests marked `xfail` were reported as `SKIPPED`
+- With pytest-xdist, every worker wrote its own partial report; only the controller now
+  writes the report, and markers are kept for tests run on workers
+
 ## [1.1.1] - 2026-11-08
 
 ### Fixed

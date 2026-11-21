@@ -57,6 +57,9 @@ class BaseSettings:
     # Response status codes that trigger a retry. Add 429 to retry rate-limited
     # calls (urllib3 honours the Retry-After header on 413/429/503).
     api_retry_statuses: list[int] = [500, 502, 503, 504]
+    # Max characters of each request/response body captured for the HTML report.
+    # 0 captures bodies in full (larger report files for big payloads).
+    api_body_limit: int = 2000
 
     @classmethod
     def as_dict(cls) -> dict[str, Any]:

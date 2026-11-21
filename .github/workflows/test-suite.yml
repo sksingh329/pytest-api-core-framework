@@ -8,6 +8,8 @@
 #
 # Reports accumulate on the gh-pages branch under reports/, with an index.html
 # dashboard listing them newest-first; only the most recent 200 reports are kept.
+# Reports from failing runs are published too (marked ❌ on the dashboard), and
+# each run's job summary links straight to its reports.
 #
 # One-time setup required for the report to publish:
 #   Settings → Pages → Build and deployment → Source → "Deploy from a branch"
@@ -63,16 +65,26 @@ jobs:
           cache: pip
 
       - name: Install dependencies
+        id: install
         run: |
           pip install --upgrade pip
           pip install -e ".[dev,dotenv]"
 
+      # API_HTML_REPORT_URL makes the plugin print the report's published URL in
+      # the log instead of a file:// path on the runner. The link goes live once
+      # the publish-report job has deployed it.
       - name: Run unit tests
+        env:
+          API_HTML_REPORT_URL: https://${{ env.REPORTS_DOMAIN }}/reports
         run: >
           pytest tests/unit/ -v --tb=short --no-header
           --api-html-report=reports/dev/{timestamp}_py${{ matrix.python-version }}_unit.html
 
+      # Run even when the unit tests failed, so the e2e report still exists.
       - name: Run e2e tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        env:
+          API_HTML_REPORT_URL: https://${{ env.REPORTS_DOMAIN }}/reports
         run: >
           pytest tests/e2e/ -v --tb=short --no-header --api-env=dev
           --api-html-report=reports/dev/{timestamp}_py${{ matrix.python-version }}_e2e.html
@@ -88,7 +100,9 @@ jobs:
   publish-report:
     name: Publish report to GitHub Pages
     needs: test
-    if: always() && needs.test.result == 'success'
+    # Publish failing runs too: their reports are the ones people need to open.
+    # Skipped only when the run was cancelled or the test job never ran.
+    if: ${{ !cancelled() && needs.test.result != 'skipped' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -119,12 +133,18 @@ jobs:
             cp gh-pages/reports/*.html site/reports/ 2>/dev/null || true
           fi
 
-          new_count=$(ls -1 new-report/*.html | wc -l)
-          cp new-report/*.html site/reports/
+          # A test job that failed before running pytest uploads no reports.
+          shopt -s nullglob
+          new_reports=(new-report/*.html)
+          new_count=${#new_reports[@]}
+          if [ "$new_count" -gt 0 ]; then
+            cp "${new_reports[@]}" site/reports/
+          fi
+          shopt -u nullglob
           echo "new_count=$new_count" >> "$GITHUB_OUTPUT"
 
           cd site/reports
-          total_before=$(ls -1 *.html | wc -l)
+          total_before=$(find . -maxdepth 1 -name '*.html' | wc -l)
           pruned=0
           if [ "$total_before" -gt "$REPORTS_TO_KEEP" ]; then
             to_delete=$(ls -1 *.html | sort | head -n -"$REPORTS_TO_KEEP")
@@ -133,11 +153,26 @@ jobs:
           fi
           cd ../..
           echo "pruned=$pruned" >> "$GITHUB_OUTPUT"
-          echo "total_reports=$(ls -1 site/reports/*.html | wc -l)" >> "$GITHUB_OUTPUT"
+          echo "total_reports=$(find site/reports -maxdepth 1 -name '*.html' | wc -l)" >> "$GITHUB_OUTPUT"
 
       - name: Generate dashboard index.html
         run: |
           set -euo pipefail
+          # Reports carry their outcome in <meta name="api-core-status"/"api-core-counts">.
+          # Reports from older plugin versions have neither and show "—".
+          report_status() {
+            case "$(grep -o 'name="api-core-status" content="[a-z]*"' "$1" | sed -E 's/.*content="([a-z]*)"/\1/' || true)" in
+              passed) echo "✅" ;;
+              failed) echo "❌" ;;
+              *) echo "—" ;;
+            esac
+          }
+          report_counts() {
+            counts=$(grep -o 'name="api-core-counts" content="[^"]*"' "$1" | sed -E 's/.*content="([^"]*)"/\1/' || true)
+            [ -z "$counts" ] && { echo "—"; return; }
+            # "total=9;passed=7;failed=1;error=1;..." → "7 passed · 1 failed · 1 error" (non-zero only)
+            echo "$counts" | tr ';' '\n' | grep -v '^total=' | awk -F= '$2 > 0 { printf "%s%s %s", sep, $2, $1; sep=" · " }'
+          }
           cd site
           {
             echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
@@ -154,13 +189,15 @@ jobs:
             </style></head><body>'
             echo "<h1>pytest-api-core Test Reports</h1>"
             echo "<p class=\"meta\">Newest first · showing up to $REPORTS_TO_KEEP most recent runs</p>"
-            echo '<table><thead><tr><th>Timestamp</th><th>Python</th><th>Suite</th><th>Report</th></tr></thead><tbody>'
-            for f in $(ls -1 reports/*.html | sort -r); do
+            echo '<table><thead><tr><th>Status</th><th>Timestamp</th><th>Python</th><th>Suite</th><th>Results</th><th>Report</th></tr></thead><tbody>'
+            for f in $(find reports -maxdepth 1 -name '*.html' | sort -r); do
               name=$(basename "$f")
               ts=$(echo "$name" | sed -E 's/^([0-9]{8})_([0-9]{6})_py.*/\1 \2/')
               py=$(echo "$name" | sed -E 's/^[0-9]{8}_[0-9]{6}_py([0-9.]+)_(unit|e2e)\.html$/\1/')
               suite=$(echo "$name" | sed -E 's/^[0-9]{8}_[0-9]{6}_py([0-9.]+)_(unit|e2e)\.html$/\2/')
-              echo "<tr><td>$ts</td><td>$py</td><td>$suite</td><td><a href=\"reports/$name\">$name</a></td></tr>"
+              status=$(report_status "$f")
+              results=$(report_counts "$f")
+              echo "<tr><td>$status</td><td>$ts</td><td>$py</td><td>$suite</td><td class=\"meta\">$results</td><td><a href=\"reports/$name\">$name</a></td></tr>"
             done
             echo '</tbody></table></body></html>'
           } > index.html
@@ -175,8 +212,22 @@ jobs:
 
       - name: Log report path in job summary
         run: |
+          set -euo pipefail
           {
             echo "## Test report"
+            echo ""
+            echo "### This run's reports"
+            echo ""
+            shopt -s nullglob
+            found=0
+            for f in new-report/*.html; do
+              found=1
+              name=$(basename "$f")
+              status=$(grep -o 'name="api-core-status" content="[a-z]*"' "$f" | sed -E 's/.*content="([a-z]*)"/\1/' || true)
+              icon="—"; [ "$status" = passed ] && icon="✅"; [ "$status" = failed ] && icon="❌"
+              echo "- $icon [$name](https://$REPORTS_DOMAIN/reports/$name)"
+            done
+            [ "$found" = 1 ] || echo "- No reports were produced (the test job failed before running pytest)."
             echo ""
             echo "- New reports added this run: ${{ steps.assemble.outputs.new_count }} (one unit + one e2e report per Python version)"
             echo "- Published to: \`gh-pages\` branch → \`reports/\`"

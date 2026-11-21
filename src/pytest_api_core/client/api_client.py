@@ -39,8 +39,10 @@ from pytest_api_core.security.redaction import (
 
 log = logging.getLogger("pytest_api_core.client")
 
-# Max characters of each request/response body kept in the report sentinel.
-_BODY_LIMIT = 2000
+# Default max characters of each request/response body kept in the HTML report.
+# 0 (or None) means no limit. Configurable via APIClient(body_limit=...) and the
+# api_body_limit setting / --api-body-limit flag / API_BODY_LIMIT env var.
+DEFAULT_BODY_LIMIT = 2000
 
 # Sentinel distinguishing "caller didn't pass retry=" (build one from the
 # retry_total/retry_backoff_factor/retry_methods primitives) from an explicit
@@ -131,6 +133,10 @@ class APIClient:
         504). Add 429 to retry rate-limited calls; urllib3 honours the
         ``Retry-After`` header on 413/429/503. Ignored if *retry* is explicitly
         passed.
+    body_limit:
+        Max characters of each request/response body captured for the HTML
+        report (default: 2000). ``0`` or ``None`` captures bodies in full.
+        Bodies are redacted before they are cut, whatever the limit.
     """
 
     def __init__(
@@ -145,8 +151,12 @@ class APIClient:
         retry_backoff_factor: float = 0.3,
         retry_methods: Sequence[str] = ("GET", "HEAD", "OPTIONS"),
         retry_statuses: Sequence[int] = DEFAULT_RETRY_STATUSES,
+        body_limit: int | None = DEFAULT_BODY_LIMIT,
     ) -> None:
+        if body_limit is not None and body_limit < 0:
+            raise ValueError(f"body_limit must be >= 0 (0 = no limit), got {body_limit}")
         self.base_url = base_url.rstrip("/")
+        self.body_limit: int | None = body_limit or None  # None = no limit
         self.timeout = timeout
         self.verify_ssl = verify_ssl
 
@@ -313,8 +323,8 @@ class APIClient:
             retries.append(entry)
         return retries
 
-    @staticmethod
     def _emit_call(
+        self,
         *,
         method: str,
         url: str,
@@ -332,17 +342,22 @@ class APIClient:
         Headers and bodies are redacted here — tokens are never logged. Bodies are
         redacted before truncating so a cut can't leave a partial secret behind.
         """
+        limit = self.body_limit
         safe_req_body = redact_text(req_body)
+        safe_res_body = redact_text(res_body)
         payload: dict[str, Any] = {
             "method": method,
             "url": url,
             "req_headers": redact_headers(req_headers),
-            "req_body": safe_req_body[:_BODY_LIMIT],
-            "req_body_truncated": len(safe_req_body) > _BODY_LIMIT,
+            "req_body": safe_req_body[:limit] if limit else safe_req_body,
+            "req_body_truncated": limit is not None and len(safe_req_body) > limit,
             "status": status,
             "elapsed_ms": round(elapsed_ms, 1),
             "res_headers": redact_headers(res_headers),
-            "res_body": redact_text(res_body)[:_BODY_LIMIT],
+            "res_body": safe_res_body[:limit] if limit else safe_res_body,
+            "res_body_truncated": limit is not None and len(safe_res_body) > limit,
+            "res_body_length": len(safe_res_body),
+            "body_limit": limit or 0,
         }
         if error is not None:
             payload["error"] = error

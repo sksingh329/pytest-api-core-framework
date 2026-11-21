@@ -35,6 +35,8 @@ _DEFAULTS: dict[str, Any] = {
     "api_retry_backoff_factor": 0.3,
     "api_retry_methods": ["GET", "HEAD", "OPTIONS"],
     "api_retry_statuses": [500, 502, 503, 504],
+    # Max characters of each request/response body kept in the HTML report; 0 = no limit.
+    "api_body_limit": 2000,
 }
 
 # Maps env-var names → config keys
@@ -47,6 +49,7 @@ _ENV_VAR_MAP: dict[str, str] = {
     "API_RETRY_BACKOFF_FACTOR": "api_retry_backoff_factor",
     "API_RETRY_METHODS": "api_retry_methods",
     "API_RETRY_STATUSES": "api_retry_statuses",
+    "API_BODY_LIMIT": "api_body_limit",
 }
 
 
@@ -156,12 +159,31 @@ class ConfigManager:
             return [m.strip().upper() for m in raw.split(",") if m.strip()]
         if key == "api_retry_statuses":
             return parse_status_list(raw)
+        if key == "api_body_limit":
+            return parse_body_limit(raw)
         return raw
 
 
 # ------------------------------------------------------------------
 # Utility
 # ------------------------------------------------------------------
+
+
+_UNLIMITED_WORDS = ("0", "none", "unlimited", "off", "full")
+
+
+def parse_body_limit(raw: str) -> int:
+    """``"5000"`` → ``5000``; ``"0"`` / ``"unlimited"`` / ``"none"`` → ``0`` (no limit)."""
+    text = raw.strip().lower()
+    if text in _UNLIMITED_WORDS:
+        return 0
+    try:
+        value = int(text)
+    except ValueError:
+        value = -1
+    if value < 0:
+        raise ValueError(f"Body limit must be a non-negative integer or 'unlimited', got {raw!r}")
+    return value
 
 
 def parse_status_list(raw: str) -> list[int]:

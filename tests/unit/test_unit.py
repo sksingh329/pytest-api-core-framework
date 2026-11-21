@@ -28,6 +28,9 @@ from pytest_api_core.client.api_client import APIClient, RecordingRetry
 from pytest_api_core.config.config_manager import ConfigManager
 from pytest_api_core.reporters.html_reporter import (
     _endpoint_stats,
+    _assertion_diff,
+    _failure_reason,
+    _json_view,
     _render_report,
     _TestRecord,
     _to_curl,
@@ -1295,3 +1298,612 @@ class TestRetryStatusConfig:
             assert cfg["api_retry_statuses"] == [502]
         finally:
             del sys.modules["_test_settings_statuses"]
+
+
+# ---------------------------------------------------------------------------
+# HTML report: xfail outcomes, pytest-xdist, sortable table
+# ---------------------------------------------------------------------------
+
+_OUTCOME_TESTS = """
+import pytest
+
+def test_ok():
+    pass
+
+@pytest.mark.xfail(reason="known bug")
+def test_expected_failure():
+    assert False
+
+@pytest.mark.xfail(reason="fixed already?")
+def test_unexpected_pass():
+    pass
+
+@pytest.mark.xfail(strict=True)
+def test_strict_unexpected_pass():
+    pass
+
+@pytest.mark.xfail(run=False)
+def test_not_run():
+    pass
+
+@pytest.mark.skip
+def test_skipped():
+    pass
+
+@pytest.mark.smoke
+def test_marked():
+    pass
+"""
+
+
+def _row_outcome(html: str, test_name: str) -> str:
+    match = re.search(
+        r'<tr class="result-row (\w+)"[^>]*data-name="[^"]*::' + test_name + '"', html
+    )
+    assert match, f"no row for {test_name}"
+    return match.group(1)
+
+
+class TestReportOutcomesAndParallel:
+    pytestmark = pytest.mark.unit
+
+    def _run(self, pytester, *args):
+        # Subprocess, not in-process: this repo's pytest.ini enables log_cli, whose
+        # live-log handler swallows a nested in-process session's terminal output.
+        pytester.makepyfile(test_outcomes=_OUTCOME_TESTS)
+        pytester.makeini("[pytest]\nmarkers =\n    smoke: smoke tests\n")
+        report = pytester.path / "report.html"
+        result = pytester.runpytest_subprocess(
+            f"--api-html-report={report}", "-p", "no:cacheprovider", *args
+        )
+        return result, report.read_text(encoding="utf-8")
+
+    def test_xfail_outcomes_are_reported_distinctly(self, pytester):
+        result, html = self._run(pytester)
+        result.assert_outcomes(passed=2, failed=1, skipped=1, xfailed=2, xpassed=1)
+
+        assert _row_outcome(html, "test_ok") == "passed"
+        assert _row_outcome(html, "test_expected_failure") == "xfailed"
+        assert _row_outcome(html, "test_not_run") == "xfailed"
+        assert _row_outcome(html, "test_unexpected_pass") == "xpassed"
+        assert _row_outcome(html, "test_strict_unexpected_pass") == "failed"
+        assert _row_outcome(html, "test_skipped") == "skipped"
+        assert "badge-xfail" in html and "badge-xpass" in html
+        assert "setFilter('xfailed', this)" in html
+        # 2 passed + 2 xfailed + 1 xpassed of 7 → expected outcomes count as passing
+        assert "Pass rate: <strong>71.4%</strong>" in html
+
+    def test_xfail_filters_hidden_when_none(self):
+        rec = _TestRecord("t::a")
+        rec.outcome = "passed"
+        html = _render_report(
+            [rec], __import__("datetime").datetime.now(), 0.1, "dark", "t", "h", []
+        )
+        assert "setFilter('xfailed'" not in html
+        assert "XFailed" not in html
+
+    def test_xdist_run_writes_one_complete_report(self, pytester):
+        pytest.importorskip("xdist")
+        result, html = self._run(pytester, "-n", "2")
+        result.assert_outcomes(passed=2, failed=1, skipped=1, xfailed=2, xpassed=1)
+
+        assert html.count('class="result-row ') == 7
+        assert _row_outcome(html, "test_expected_failure") == "xfailed"
+        assert _row_outcome(html, "test_unexpected_pass") == "xpassed"
+        # Markers travel from worker to controller on the report
+        assert re.search(
+            r'test_marked\s*<button[^>]*>🔗</button>\s*<span class="marker">smoke</span>', html
+        )
+        # Each row names the worker that ran it; Run Info lists the workers
+        assert len(re.findall(r'class="worker-tag"[^>]*>⚙ gw[01]</span>', html)) == 7
+        assert "<td>Parallel workers</td><td>2 (gw0, gw1)</td>" in html
+        # Only the controller writes a report — workers must not leave their own files
+        assert [p.name for p in pytester.path.glob("*.html")] == ["report.html"]
+
+    def test_serial_run_shows_no_worker_info(self):
+        rec = _TestRecord("t::a")
+        rec.outcome = "passed"
+        html = _render_report(
+            [rec], __import__("datetime").datetime.now(), 0.1, "dark", "t", "h", []
+        )
+        assert 'class="worker-tag"' not in html
+        assert "Parallel workers" not in html
+
+    def test_results_table_is_sortable(self):
+        recs = []
+        for i, (outcome, duration) in enumerate([("passed", 0.5), ("failed", 2.0)]):
+            rec = _TestRecord(f"t::test_{i}")
+            rec.outcome = outcome
+            rec.duration = duration
+            recs.append(rec)
+        html = _render_report(
+            recs, __import__("datetime").datetime.now(), 1.0, "dark", "t", "h", []
+        )
+
+        for key in ("status", "name", "duration", "calls"):
+            assert f"sortTable('{key}', this)" in html
+        assert html.count('aria-sort="none"') == 4
+        assert 'data-index="1"' in html and 'data-duration="2.0"' in html
+        assert "function sortTable(" in html
+
+
+# ---------------------------------------------------------------------------
+# HTML report: failure reason, failures-first view, URL view state
+# ---------------------------------------------------------------------------
+
+
+def _rec(outcome="failed", **attrs):
+    rec = _TestRecord("tests/test_x.py::test_case")
+    rec.outcome = outcome
+    for name, value in attrs.items():
+        setattr(rec, name, value)
+    return rec
+
+
+class TestFailureReason:
+    pytestmark = pytest.mark.unit
+
+    def test_first_failed_assertion_wins(self):
+        rec = _rec(
+            assertions=[
+                {"name": "status_is", "passed": True, "expected": 200, "actual": 200},
+                {"name": "key_equals", "passed": False, "key": "id", "expected": 1, "actual": 2},
+                {"name": "has_key", "passed": False, "key": "name", "actual": "<missing>"},
+            ],
+            crash="AssertionError: something else",
+        )
+        assert _failure_reason(rec) == (
+            "key_equals [id]: expected 1, got 2 (+1 more failed assertion(s))"
+        )
+
+    def test_schema_assertion_shows_first_error(self):
+        rec = _rec(
+            assertions=[
+                {
+                    "name": "assert_matches_schema",
+                    "passed": False,
+                    "errors": ["$.id: 'x' is not of type 'integer'", "$.name: required"],
+                }
+            ]
+        )
+        assert _failure_reason(rec) == (
+            "assert_matches_schema: 2 schema error(s) — $.id: 'x' is not of type 'integer'"
+        )
+
+    def test_request_error_when_no_assertion_failed(self):
+        rec = _rec(
+            api_calls=[{"method": "GET", "url": "https://api.x/u", "error": "ConnectTimeout: boom"}]
+        )
+        assert _failure_reason(rec) == "GET https://api.x/u → ConnectTimeout: boom"
+
+    def test_falls_back_to_crash_then_traceback(self):
+        assert _failure_reason(_rec(crash="KeyError: 'id'")) == "KeyError: 'id'"
+        longrepr = (
+            "def test():\n>       assert x == 1\nE       assert 2 == 1\nE        +  where 2 = x"
+        )
+        assert _failure_reason(_rec(longrepr=longrepr)) == "assert 2 == 1"
+        assert _failure_reason(_rec(outcome="error", longrepr="\n[XPASS(strict)] \n")) == (
+            "[XPASS(strict)]"
+        )
+
+    def test_only_for_failed_or_errored_tests(self):
+        for outcome in ("passed", "skipped", "xfailed", "xpassed"):
+            assert _failure_reason(_rec(outcome=outcome, crash="boom")) == ""
+
+    def test_long_reason_is_shortened_to_one_line(self):
+        reason = _failure_reason(_rec(crash="line one\n   line two " + "x" * 400))
+        assert reason.startswith("line one line two ")
+        assert len(reason) == 200 and reason.endswith("…")
+
+    def test_reason_is_redacted(self):
+        register_secret("s3cr3t-token-value")
+        rec = _rec()
+        # crash text is scrubbed when captured; simulate the capture path
+        rec.crash = scrub_text("AssertionError: token s3cr3t-token-value rejected")
+        assert "s3cr3t-token-value" not in _failure_reason(rec)
+
+    def test_crash_message_captured_from_real_run(self, pytester):
+        pytester.makepyfile("""
+            import pytest
+
+            @pytest.fixture
+            def broken():
+                raise RuntimeError("db unavailable")
+
+            def test_fails():
+                assert {"id": 2}["id"] == 1, "wrong id"
+
+            def test_errors(broken):
+                pass
+            """)
+        report = pytester.path / "report.html"
+        result = pytester.runpytest_subprocess(f"--api-html-report={report}")
+        result.assert_outcomes(failed=1, errors=1)
+        html = report.read_text(encoding="utf-8")
+        assert "✖ AssertionError: wrong id assert 2 == 1" in html
+        assert "✖ RuntimeError: db unavailable" in html
+
+
+class TestReportViewState:
+    pytestmark = pytest.mark.unit
+
+    def _html(self, *outcomes):
+        recs = [_rec(outcome=o, crash="boom" if o in ("failed", "error") else "") for o in outcomes]
+        return _render_report(
+            recs, __import__("datetime").datetime.now(), 1.0, "dark", "t", "h", []
+        )
+
+    def test_failures_filter_counts_failed_and_errors(self):
+        html = self._html("passed", "failed", "error", "failed")
+        assert 'data-filter="failures"' in html
+        assert "⚠ Failures (3)" in html
+        assert '<div class="fail-reason" title="boom">✖ boom</div>' in html
+
+    def test_no_failures_filter_on_green_run(self):
+        html = self._html("passed", "skipped")
+        assert 'class="filter-btn failures"' not in html
+        assert 'class="fail-reason"' not in html
+
+    def test_view_state_is_kept_in_url(self):
+        html = self._html("passed", "failed")
+        for fn in ("function saveState(", "function restoreState(", "history.replaceState"):
+            assert fn in html
+        assert "var DEFAULT_THEME = 'dark';" in html
+        for key in ("status", "name", "duration", "calls"):
+            assert f'data-sort-key="{key}"' in html
+
+    def test_every_row_has_a_copy_link_button(self):
+        html = self._html("passed", "failed", "skipped")
+        assert html.count('class="link-btn"') == 3
+        assert 'aria-label="Copy link to this test"' in html
+        for fn in ("function copyTestLink(", "function showLinkedTest(", "'hashchange'"):
+            assert fn in html
+        assert 'id="linkNotice"' in html
+
+
+# ---------------------------------------------------------------------------
+# HTML report in CI: published URL in the log, machine-readable status
+# ---------------------------------------------------------------------------
+
+
+class TestReportInCI:
+    pytestmark = pytest.mark.unit
+
+    def _run(self, pytester, monkeypatch, *args, env_url=None, ini_url=None):
+        pytester.makepyfile("def test_ok(): pass\ndef test_bad(): assert False")
+        if ini_url:
+            pytester.makeini(f"[pytest]\napi_html_report_url = {ini_url}\n")
+        if env_url:
+            monkeypatch.setenv("API_HTML_REPORT_URL", env_url)
+        else:
+            monkeypatch.delenv("API_HTML_REPORT_URL", raising=False)
+        report = pytester.path / "out dir" / "run 1.html"
+        result = pytester.runpytest_subprocess(f"--api-html-report={report}", *args)
+        return result, report
+
+    def test_log_shows_file_uri_by_default(self, pytester, monkeypatch):
+        result, report = self._run(pytester, monkeypatch)
+        result.stdout.fnmatch_lines([f"*API HTML report: {report.resolve().as_uri()}"])
+
+    def test_log_shows_published_url_from_ini(self, pytester, monkeypatch):
+        result, _ = self._run(pytester, monkeypatch, ini_url="https://reports.example.test/runs/")
+        result.stdout.fnmatch_lines(
+            ["*API HTML report: https://reports.example.test/runs/run%201.html"]
+        )
+
+    def test_env_var_overrides_ini_url(self, pytester, monkeypatch):
+        result, _ = self._run(
+            pytester,
+            monkeypatch,
+            env_url="https://ci.example.test/r",
+            ini_url="https://ini.example.test",
+        )
+        result.stdout.fnmatch_lines(["*API HTML report: https://ci.example.test/r/run%201.html"])
+
+    def test_report_carries_machine_readable_status(self, pytester, monkeypatch):
+        _, report = self._run(pytester, monkeypatch)
+        html = report.read_text(encoding="utf-8")
+        assert '<meta name="api-core-status" content="failed"/>' in html
+        assert (
+            '<meta name="api-core-counts" content="total=2;passed=1;failed=1;error=0;'
+            'skipped=0;xfailed=0;xpassed=0"/>' in html
+        )
+
+    def test_green_run_status_is_passed(self):
+        rec = _rec(outcome="passed")
+        html = _render_report(
+            [rec], __import__("datetime").datetime.now(), 1.0, "dark", "t", "h", []
+        )
+        assert '<meta name="api-core-status" content="passed"/>' in html
+
+
+# ---------------------------------------------------------------------------
+# HTML report: expected-vs-actual JSON diff, pretty JSON bodies
+# ---------------------------------------------------------------------------
+
+
+class TestAssertionDiff:
+    pytestmark = pytest.mark.unit
+
+    def _diff(self, expected, actual, **extra):
+        return _assertion_diff(
+            {"name": "equals", "passed": False, "expected": expected, "actual": actual, **extra}
+        )
+
+    def test_lists_each_difference_by_path(self):
+        diff = self._diff(
+            {"id": 1, "user": {"name": "Ann", "tags": ["a", "b"]}, "gone": True},
+            {"id": "1", "user": {"name": "Bob", "tags": ["a"]}, "extra": None},
+            path="$.data",
+        )
+        assert [(r["path"], r["kind"], r["expected"], r["actual"]) for r in diff["rows"]] == [
+            ("$.data.extra", "unexpected", "", "null"),
+            ("$.data.gone", "missing", "true", ""),
+            ("$.data.id", "type", "1", '"1"'),
+            ("$.data.user.name", "changed", '"Ann"', '"Bob"'),
+            ("$.data.user.tags[1]", "missing", '"b"', ""),
+        ]
+        assert diff["more"] == 0
+
+    def test_base_path_from_key_and_default(self):
+        assert self._diff({"a": 1}, {"a": 2}, key="body")["rows"][0]["path"] == "$.body.a"
+        assert self._diff([1], [2])["rows"][0]["path"] == "$[0]"
+
+    def test_int_float_equal_but_bool_differs(self):
+        assert self._diff({"n": 1, "b": True}, {"n": 1.0, "b": 1})["rows"] == [
+            {"path": "$.b", "kind": "type", "expected": "true", "actual": "1"}
+        ]
+
+    def test_side_by_side_marks_changed_and_missing_lines(self):
+        lines = self._diff({"a": 1, "b": 2}, {"a": 1, "b": 3, "c": 4})["lines"]
+        kinds = {(ln["l"].strip(), ln["r"].strip()): ln["kind"] for ln in lines}
+        assert kinds[('"a": 1,', '"a": 1,')] == "same"
+        assert kinds[('"b": 2', '"b": 3,')] == "chg"
+        assert kinds[("", '"c": 4')] == "ins"
+
+    def test_no_diff_for_scalars_passes_or_missing(self):
+        assert self._diff(1, 2) is None
+        assert self._diff({"a": 1}, "<missing>") is None
+        assert (
+            _assertion_diff({"name": "equals", "passed": True, "expected": {}, "actual": {}})
+            is None
+        )
+
+    def test_rows_are_capped(self):
+        diff = self._diff({str(i): i for i in range(80)}, {})
+        assert len(diff["rows"]) == 50 and diff["more"] == 30
+
+    def test_diff_rendered_under_failed_assertion(self):
+        rec = _rec(
+            assertions=[
+                {
+                    "name": "equals",
+                    "passed": False,
+                    "path": "$.user",
+                    "expected": {"name": "Ann"},
+                    "actual": {"name": "Bob"},
+                }
+            ]
+        )
+        html = _render_report(
+            [rec], __import__("datetime").datetime.now(), 1.0, "dark", "t", "h", []
+        )
+        assert 'class="diff-table"' in html
+        assert "<td>$.user.name</td>" in html
+        assert "Side-by-side (keys sorted)" in html
+
+
+class TestJsonBodyView:
+    pytestmark = pytest.mark.unit
+
+    def test_valid_json_becomes_collapsible_tree(self):
+        view = _json_view('{"id": 7, "tags": ["x"], "ok": true, "none": null, "empty": {}}')
+        tree = str(view["tree"])
+        assert tree.startswith('<details class="j-node" open>')
+        assert '<span class="j-key">&#34;id&#34;</span>: <span class="j-num">7</span>' in tree
+        assert (
+            '<span class="j-lit">true</span>' in tree and '<span class="j-lit">null</span>' in tree
+        )
+        assert "<em>1 item</em>" in tree and "<em>5 keys</em>" in tree
+        assert view["pretty"].splitlines()[1] == '  "id": 7,'  # key order preserved
+
+    def test_non_json_and_truncated_bodies_fall_back_to_raw(self):
+        for text in ("", None, "plain text", '{"cut": "off', "<html></html>"):
+            assert _json_view(text) is None
+
+    def test_body_content_is_escaped(self):
+        tree = str(_json_view('{"<script>x</script>": "<img src=x onerror=alert(1)>"}')["tree"])
+        assert "<script>" not in tree and "<img" not in tree
+        assert "&lt;script&gt;" in tree and "&lt;img" in tree
+
+    def test_report_renders_json_and_raw_bodies(self):
+        rec = _rec(
+            outcome="passed",
+            api_calls=[
+                {
+                    "method": "GET",
+                    "url": "https://x/a",
+                    "status": 200,
+                    "req_headers": {},
+                    "res_headers": {},
+                    "elapsed_ms": 1,
+                    "res_body": '{"a": 1}',
+                    "req_body": "",
+                },
+                {
+                    "method": "GET",
+                    "url": "https://x/b",
+                    "status": 200,
+                    "req_headers": {},
+                    "res_headers": {},
+                    "elapsed_ms": 1,
+                    "res_body": "not json",
+                    "req_body": "",
+                },
+            ],
+        )
+        html = _render_report(
+            [rec], __import__("datetime").datetime.now(), 1.0, "dark", "t", "h", []
+        )
+        assert 'id="jv-res-call-0-0"' in html and 'class="json-tree"' in html
+        assert "jsonToggleAll('jv-res-call-0-0', false)" in html
+        assert 'id="jv-res-call-0-1"' not in html
+        assert '<pre class="http-body-pre">not json</pre>' in html
+
+    def test_failure_reason_names_differing_paths(self):
+        rec = _rec(
+            assertions=[
+                {
+                    "name": "equals",
+                    "passed": False,
+                    "path": "$.address",
+                    "expected": {"city": "Paris", "zip": "E1", "country": "FR", "a": 1, "b": 2},
+                    "actual": {"city": "London", "zip": "E1"},
+                }
+            ]
+        )
+        assert _failure_reason(rec) == (
+            "equals [$.address]: 4 difference(s) — $.address.a missing, $.address.b missing, "
+            "$.address.city changed, +1 more"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Configurable body capture limit (api_body_limit)
+# ---------------------------------------------------------------------------
+
+_BIG = "https://api.example.com/big"
+
+
+class TestBodyLimit:
+    pytestmark = pytest.mark.unit
+
+    def _call(self, caplog, client, body):
+        rsps_lib.post(_BIG, json=body)
+        with caplog.at_level(logging.DEBUG, logger="pytest_api_core"):
+            client.post("/big", json=body)
+        return _sentinels(caplog, "__API_CALL__")[-1]
+
+    @rsps_lib.activate
+    def test_default_limit_truncates_and_flags(self, caplog):
+        body = {"items": ["x" * 50] * 100}
+        call = self._call(caplog, APIClient("https://api.example.com"), body)
+        assert len(call["res_body"]) == 2000 and call["res_body_truncated"] is True
+        assert call["req_body_truncated"] is True
+        assert call["res_body_length"] > 2000 and call["body_limit"] == 2000
+
+    @rsps_lib.activate
+    @pytest.mark.parametrize("limit", [0, None])
+    def test_zero_or_none_captures_full_body(self, caplog, limit):
+        body = {"items": ["x" * 50] * 1000}
+        call = self._call(caplog, APIClient("https://api.example.com", body_limit=limit), body)
+        assert json.loads(call["res_body"]) == body and json.loads(call["req_body"]) == body
+        assert call["res_body_truncated"] is False and call["req_body_truncated"] is False
+        assert call["body_limit"] == 0
+
+    @rsps_lib.activate
+    def test_full_body_is_still_redacted(self, caplog):
+        body = {"items": ["x" * 50] * 100, "access_token": "very-secret-value"}
+        call = self._call(caplog, APIClient("https://api.example.com", body_limit=0), body)
+        assert "very-secret-value" not in call["res_body"]
+        assert json.loads(call["res_body"])["access_token"] == REDACTED
+
+    def test_negative_limit_rejected(self):
+        with pytest.raises(ValueError, match="body_limit"):
+            APIClient("https://api.example.com", body_limit=-1)
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [("5000", 5000), ("0", 0), ("unlimited", 0), ("None", 0), (" full ", 0)],
+    )
+    def test_parse_body_limit(self, raw, expected):
+        from pytest_api_core.config.config_manager import parse_body_limit
+
+        assert parse_body_limit(raw) == expected
+
+    @pytest.mark.parametrize("raw", ["-5", "lots", "1.5"])
+    def test_parse_body_limit_rejects_bad_values(self, raw):
+        from pytest_api_core.config.config_manager import parse_body_limit
+
+        with pytest.raises(ValueError, match="Body limit"):
+            parse_body_limit(raw)
+
+    def test_config_default_env_and_cli(self, monkeypatch):
+        monkeypatch.delenv("API_BODY_LIMIT", raising=False)
+        assert ConfigManager(env="x").load()["api_body_limit"] == 2000
+        cli = ConfigManager(env="x", cli_overrides={"api_body_limit": 0}).load()
+        assert cli["api_body_limit"] == 0
+        monkeypatch.setenv("API_BODY_LIMIT", "unlimited")
+        env = ConfigManager(env="x", cli_overrides={"api_body_limit": 100}).load()
+        assert env["api_body_limit"] == 0  # env var wins over CLI
+
+    def test_cli_flag_reaches_api_client(self, pytester):
+        pytester.makepyfile("""
+            def test_limit(api_client):
+                assert api_client.body_limit is None
+            """)
+        pytester.runpytest_subprocess("--api-body-limit=unlimited").assert_outcomes(passed=1)
+
+    def test_report_explains_truncation(self):
+        call = {
+            "method": "GET",
+            "url": "https://x/a",
+            "status": 200,
+            "req_headers": {},
+            "res_headers": {},
+            "elapsed_ms": 1,
+            "req_body": "",
+            "res_body": '{"a": "' + "x" * 1990,
+            "res_body_truncated": True,
+            "res_body_length": 12345,
+            "body_limit": 2000,
+        }
+        html = _render_report(
+            [_rec(outcome="passed", api_calls=[call])],
+            __import__("datetime").datetime.now(),
+            1.0,
+            "dark",
+            "t",
+            "h",
+            [],
+        )
+        assert "⚠ Truncated to 2,000 of 12,345 characters." in html
+        assert "<code>api_body_limit = 0</code>" in html
+
+
+class TestLogsCopyButton:
+    pytestmark = pytest.mark.unit
+
+    def test_logs_section_has_copy_button(self):
+        rec = _rec(outcome="passed", logs="--- Captured log call ---\nINFO hello <b>\n")
+        html = _render_report(
+            [rec], __import__("datetime").datetime.now(), 1.0, "dark", "t", "h", []
+        )
+        assert "getElementById('logs-0').textContent" in html
+        assert '<pre class="code-block log-block" id="logs-0">' in html
+        assert "INFO hello &lt;b&gt;" in html  # still escaped
+
+    def test_no_copy_button_without_logs(self):
+        html = _render_report(
+            [_rec(outcome="passed")],
+            __import__("datetime").datetime.now(),
+            1.0,
+            "dark",
+            "t",
+            "h",
+            [],
+        )
+        assert 'id="logs-0"' not in html
+
+    def test_stdout_stderr_and_failure_have_copy_buttons(self):
+        rec = _rec(stdout="out", stderr="err", longrepr="E   assert 200 == 999")
+        html = _render_report(
+            [rec], __import__("datetime").datetime.now(), 1.0, "dark", "t", "h", []
+        )
+        for section in ("stdout", "stderr", "failure"):
+            assert f"getElementById('{section}-0').textContent" in html
+            assert f'id="{section}-0"' in html
+        assert (
+            '<pre class="code-block failure-block" id="failure-0">E   assert 200 == 999</pre>'
+            in html
+        )

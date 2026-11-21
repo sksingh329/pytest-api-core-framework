@@ -53,13 +53,13 @@ Browse real ones from this repo's CI on the [live reports dashboard](https://git
 ## Installation
 
 ```bash
-pip install pytest-api-core==1.1.1
+pip install pytest-api-core==1.2.0
 ```
 
 With `.env` file support (recommended):
 
 ```bash
-pip install "pytest-api-core[dotenv]==1.1.1"
+pip install "pytest-api-core[dotenv]==1.2.0"
 ```
 
 ---
@@ -148,7 +148,12 @@ class StagingSettings(BaseSettings):
     api_retry_total = 5
     api_retry_backoff_factor = 1.0
     api_retry_statuses = [429, 502, 503, 504]   # also retry rate limiting
+    api_retry_methods = ["GET", "HEAD", "OPTIONS", "PUT"]   # default: GET, HEAD, OPTIONS
 ```
+
+`api_retry_methods` replaces the default list rather than adding to it, so keep `GET`, `HEAD`
+and `OPTIONS` in it if you still want them retried. With the settings above, a `PUT` that gets
+`503` is retried, but a `POST` that gets `503` is not, because `POST` isn't in the list.
 
 Or per-run, without touching code:
 
@@ -193,6 +198,25 @@ To disable retries entirely, pass `retry=None` directly when constructing an
 `APIClient` yourself (not available as a config option, since "no retries" isn't
 something you'd want to toggle per environment).
 
+### Report body capture
+
+The HTML report keeps the first 2000 characters of each request and response body. A cut-off
+body is marked in the report with its full length. To capture bodies in full, set the limit to
+`0` (or `unlimited`):
+
+| `settings_module` attribute | CLI flag | Env var | `APIClient` argument | Default |
+|---|---|---|---|---|
+| `api_body_limit` | `--api-body-limit` | `API_BODY_LIMIT` | `body_limit=` | `2000` (`0` = no limit) |
+
+```bash
+pytest --api-body-limit=0                     # this run only
+export API_BODY_LIMIT=unlimited               # e.g. in CI
+```
+
+Bodies are redacted before they are cut, whatever the limit. With no limit, report files grow
+with your payloads; JSON bodies over 500,000 characters are shown as raw text rather than the
+collapsible view, to keep the report quick to open.
+
 ### Key `pytest.ini` options
 
 | Option | Description | Default |
@@ -202,6 +226,7 @@ something you'd want to toggle per environment).
 | `api_dotenv_file` | Path to `.env` file | `.env` |
 | `api_log_level` | Framework log level | `WARNING` |
 | `api_html_report` | HTML report path (supports `{env}`, `{timestamp}`) | — |
+| `api_html_report_url` | Base URL reports are published under (e.g. in CI). The log then shows `<url>/<report file>` instead of a local `file://` path. The `API_HTML_REPORT_URL` env var overrides it | — |
 | `api_html_theme` | Report theme: `light` or `dark` | `dark` |
 | `api_html_title` | Report browser tab title | `API Test Report` |
 | `api_html_header` | Report page header text | `API Test Report` |
@@ -218,6 +243,8 @@ something you'd want to toggle per environment).
 | `--api-retry-total` | Override max retry attempts (default: `3`) |
 | `--api-retry-backoff-factor` | Override retry backoff factor (default: `0.3`) |
 | `--api-retry-methods` | Override retryable HTTP methods, comma-separated (default: `GET,HEAD,OPTIONS`) |
+| `--api-retry-statuses` | Override retryable response status codes, comma-separated (default: `500,502,503,504`) |
+| `--api-body-limit` | Max characters of each body captured in the report; `0` or `unlimited` = full bodies (default: `2000`) |
 
 ---
 
